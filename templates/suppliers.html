@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Suppliers{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Suppliers</h1><p class="sub">Companies that supply materials to your projects.</p></div>
+  <a class="btn" href="{{ url_for('supplier_new') }}">+ Add supplier</a>
+</div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Supplier</th><th class="num">Materials</th><th></th></tr></thead>
+    <tbody>
+    {% for s in suppliers %}
+      <tr><td>{{ s.name }}</td><td class="num">{{ counts[s.id] }}</td>
+          <td class="num"><a href="{{ url_for('supplier_detail', supplier_id=s.id) }}">Open &rarr;</a></td></tr>
+    {% else %}
+      <tr><td colspan="3" class="empty">No suppliers yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

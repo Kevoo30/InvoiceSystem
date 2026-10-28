@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Price history{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Price history</h1><p class="sub">{{ material.name }} ({{ material.unit }}) supplied by {{ supplier.name }}</p></div>
+  <a class="btn secondary" href="{{ url_for('prices') }}">&larr; Back to prices</a>
+</div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Effective from</th><th class="num">Price (KES)</th><th>Changed by</th></tr></thead>
+    <tbody>
+    {% for p, who in history %}
+      <tr>
+        <td>{{ p.effective_from }}</td>
+        <td class="num">{% if p.unit_price is none %}<span class="badge warn">Not set</span>{% else %}{{ '{:,.2f}'.format(p.unit_price) }}{% endif %}</td>
+        <td class="muted">{{ who or 'Initial load' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Material prices{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Material prices</h1>
+  <p class="sub">Set a new price at any time. Earlier prices are kept in the history, so old orders are checked against the price that applied then.</p></div>
+</div>
+
+<div class="card">
+  <form method="get" class="row">
+    <div>
+      <label for="supplier" style="margin-top:0">Show supplier</label>
+      <select id="supplier" name="supplier" onchange="this.form.submit()" style="min-width:280px">
+        <option value="">All suppliers</option>
+        {% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if selected == s.id }}>{{ s.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <noscript><button type="submit">Filter</button></noscript>
+  </form>
+</div>
+
+<div class="card flush scroll">
+  <table style="min-width:860px">
+    <thead><tr>
+      <th>Material</th><th class="num">Current price (KES)</th><th>Since</th><th>Set a new price</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% set ns = namespace(sup=none) %}
+    {% for r in rows %}
+      {% if r.supplier.id != ns.sup %}
+        {% set ns.sup = r.supplier.id %}
+        <tr class="group"><td colspan="5">{{ r.supplier.name }}</td></tr>
+      {% endif %}
+      {% set fid = 'f-%d-%d'|format(r.supplier.id, r.material.id) %}
+      <tr>
+        <td>{{ r.material.name }} <span class="muted unit">&middot; {{ r.material.unit }}</span></td>
+        <td class="num nowrap">{% if r.price is none %}<span class="badge warn">Not set</span>{% else %}{{ '{:,.2f}'.format(r.price) }}{% endif %}</td>
+        <td class="muted nowrap">{{ r.since or '' }}</td>
+        <td>
+          <div class="inline-edit">
+            <input form="{{ fid }}" type="number" name="price" step="0.01" min="0.01" required placeholder="New price" aria-label="New price">
+            <input form="{{ fid }}" type="date" name="effective_from" value="{{ today }}" aria-label="Effective from">
+            <button class="small" form="{{ fid }}" type="submit">Save</button>
+          </div>
+          <form id="{{ fid }}" method="post" action="{{ url_for('change_price', supplier_id=r.supplier.id, material_id=r.material.id) }}" style="display:none">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="back_supplier" value="{{ selected or '' }}">
+          </form>
+        </td>
+        <td class="num nowrap"><a href="{{ url_for('price_history', supplier_id=r.supplier.id, material_id=r.material.id) }}">History</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="empty">No materials found.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

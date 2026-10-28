@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Welcome, {{ user.name }}</h1><p class="sub">Here is where things stand today.</p></div>
+</div>
+
+{% if stats %}
+  {% if stats.unset %}
+  <div class="notice">
+    <span><b>{{ stats.unset }}</b> supplier prices have not been set yet. Invoices cannot be price-checked until they are.</span>
+    <a href="{{ url_for('prices') }}">Set prices &rarr;</a>
+  </div>
+  {% endif %}
+  <div class="stats">
+    <div class="stat"><div class="n">{{ stats.suppliers }}</div><div class="l">Active suppliers</div></div>
+    <div class="stat"><div class="n">{{ stats.materials }}</div><div class="l">Materials tracked</div></div>
+    <div class="stat {{ 'alert' if stats.unset }}"><div class="n">{{ stats.unset }}</div><div class="l">Prices not set</div></div>
+    <div class="stat"><div class="n">{{ stats.users }}</div><div class="l">Active users</div></div>
+  </div>
+
+  <h2 class="section">Manage</h2>
+  <div class="tiles">
+    <a class="tile" href="{{ url_for('prices') }}">
+      <span class="ic"><svg viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg></span>
+      <div><b>Material prices</b><span>Update prices and view the full history of changes.</span></div>
+    </a>
+    <a class="tile" href="{{ url_for('suppliers') }}">
+      <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M14 9h5a1 1 0 0 1 1 1v11M2 21h20M8 8h2M8 12h2M8 16h2"/></svg></span>
+      <div><b>Suppliers</b><span>Add a new supplier and the materials they provide.</span></div>
+    </a>
+    <a class="tile" href="{{ url_for('users') }}">
+      <span class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14.3c2.2.7 3.5 2.7 3.5 5.7"/></svg></span>
+      <div><b>Users</b><span>Create logins and control who can do what.</span></div>
+    </a>
+  </div>
+{% else %}
+  <div class="card">
+    <h2>Your role: <span class="badge role">{{ user.role }}</span></h2>
+    <p class="sub">Your working pages (orders, deliveries and invoices) will appear in the menu as they are completed.</p>
+  </div>
+{% endif %}
+{% endblock %}

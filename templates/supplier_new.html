@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Add supplier{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Add supplier</h1><p class="sub">Register a new partner, then add the materials they supply.</p></div>
+</div>
+<div class="card" style="max-width:560px">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="name" style="margin-top:0">Supplier name</label>
+    <input id="name" name="name" type="text" class="w100" required autofocus>
+    <div class="actions">
+      <button type="submit">Create and add materials</button>
+      <a class="btn secondary" href="{{ url_for('suppliers') }}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

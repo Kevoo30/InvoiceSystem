@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ supplier.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ supplier.name }}</h1><p class="sub">{{ items|length }} material{{ '' if items|length == 1 else 's' }} supplied</p></div>
+  <a class="btn secondary" href="{{ url_for('suppliers') }}">&larr; All suppliers</a>
+</div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Material</th><th>Unit</th><th class="num">Current price (KES)</th><th></th></tr></thead>
+    <tbody>
+    {% for i in items %}
+      <tr><td>{{ i.material.name }}</td><td class="muted">{{ i.material.unit }}</td>
+          <td class="num">{% if i.price is none %}<span class="badge warn">Not set</span>{% else %}{{ '{:,.2f}'.format(i.price) }}{% endif %}</td>
+          <td class="num"><a href="{{ url_for('price_history', supplier_id=supplier.id, material_id=i.material.id) }}">History</a></td></tr>
+    {% else %}
+      <tr><td colspan="4" class="empty">No materials yet. Add the first one below.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="max-width:720px">
+  <h2>Add a material to this supplier</h2>
+  <p class="sub">Choose a material already in the system, or create a new one.</p>
+  <form method="post" action="{{ url_for('supplier_add_material', supplier_id=supplier.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="material_id">Existing material</label>
+    <select id="material_id" name="material_id" class="w100">
+      <option value="">Choose a material</option>
+      {% for m in others %}<option value="{{ m.id }}">{{ m.name }} ({{ m.unit }})</option>{% endfor %}
+    </select>
+    <p class="muted" style="margin:18px 0 0">Or create a new material. Include the size in the name, for example PVC pipe 2".</p>
+    <div class="row">
+      <div style="flex:1;min-width:220px"><label for="new_name">New material name</label><input id="new_name" name="new_name" type="text" class="w100"></div>
+      <div><label for="unit">Unit</label>
+        <select id="unit" name="unit">{% for u in UNITS %}<option>{{ u }}</option>{% endfor %}</select></div>
+    </div>
+    <label for="price">Price in KES (optional)</label>
+    <input id="price" name="price" type="number" step="0.01" min="0.01" placeholder="0.00">
+    <div class="actions"><button type="submit">Add material</button></div>
+  </form>
+</div>
+{% endblock %}
