@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Orders{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Orders</h1>
+  {% if user.role in ['admin','procurement'] %}<a class="btn" href="{{ url_for('order_new') }}">+ New order</a>{% endif %}</div>
+<div class="toolbar tabs">
+  <a class="{{ 'on' if not show }}" href="{{ url_for('orders') }}">All</a>
+  <a class="{{ 'on' if show == 'open' }}" href="{{ url_for('orders', show='open') }}">Open</a>
+  <a class="{{ 'on' if show == 'closed' }}" href="{{ url_for('orders', show='closed') }}">Closed</a>
+</div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Order</th><th>Date</th><th>Supplier</th><th class="num">Items</th><th>Delivery</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td>{{ r.po.po_number }}</td><td class="nowrap">{{ r.po.order_date }}</td><td>{{ r.supplier }}</td><td class="num">{{ r.items }}</td>
+        <td>{% if r.complete %}<span class="badge ok">Complete</span>{% else %}<span class="badge warn">Pending</span>{% endif %}</td>
+        <td><span class="badge {{ 'ok' if r.po.status == 'open' else 'role' }}">{{ r.po.status|capitalize }}</span></td>
+        <td class="num"><a href="{{ url_for('order_detail', po_id=r.po.id) }}">Open &rarr;</a></td></tr>
+    {% else %}<tr><td colspan="7" class="empty">No orders.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

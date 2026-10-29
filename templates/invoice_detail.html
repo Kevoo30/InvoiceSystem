@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Invoice {{ inv.invoice_number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ supplier.name }} &middot; {{ inv.invoice_number }}</h1><p class="sub">{{ inv.invoice_date }}</p></div>
+  <div class="row"><span class="badge {{ cls }}" style="font-size:.9rem;padding:5px 14px">{{ state }}</span>
+  <a class="btn secondary" href="{{ url_for('invoices') }}">&larr; Invoices</a></div>
+</div>
+
+<div class="sum">
+  <div><b>{{ summary.total|money }}</b><span>Invoice total</span></div>
+  <div class="{{ 'bad' if summary.blocked > 0 }}"><b>{{ summary.blocked|money }}</b><span>Blocked</span></div>
+  <div class="good"><b>{{ summary.payable|money }}</b><span>Safe to pay</span></div>
+</div>
+
+<div class="card flush scroll">
+  <table style="min-width:900px">
+    <thead><tr><th>Material</th><th class="num">Ordered</th><th class="num">Delivered</th><th class="num">Returned</th><th class="num">Invoiced</th><th class="num">Price</th><th class="num">Blocked</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for r in results %}
+      <tr {% if r.status != 'MATCHED' %}class="flagged"{% endif %}>
+        <td>{{ names[r.material_id].name }}</td>
+        <td class="num">{{ r.ordered_qty|qty }}</td><td class="num">{{ r.delivered_qty|qty }}</td>
+        <td class="num">{{ r.returned_qty|qty }}</td><td class="num">{{ r.invoiced_qty|qty }}</td>
+        <td class="num">{{ r.unit_price|money }}</td>
+        <td class="num">{% if r.amount_blocked and r.amount_blocked > 0 %}<b style="color:var(--err)">{{ r.amount_blocked|money }}</b>{% else %}0.00{% endif %}</td>
+        <td><span class="badge {{ r.status|status_class }}">{{ r.status|status_label }}</span>
+          {% if r.status != 'MATCHED' %}<div class="muted" style="font-size:.82rem;margin-top:4px;max-width:360px">{{ r.reason }}</div>{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="8" class="empty">Not checked.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="actions">
+  {% if inv.payment_status == 'unpaid' %}
+  <form method="post" action="{{ url_for('invoice_recheck', invoice_id=inv.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="secondary" type="submit">Check again</button></form>
+  {% endif %}
+  {% if user.role in ['finance','admin'] %}
+    {% if inv.payment_status == 'unpaid' and clear %}
+    <form method="post" action="{{ url_for('invoice_approve', invoice_id=inv.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Approve for payment</button></form>
+    {% elif inv.payment_status == 'approved' %}
+    <form method="post" action="{{ url_for('invoice_paid', invoice_id=inv.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Mark as paid</button></form>
+    {% endif %}
+  {% endif %}
+</div>
+
+{% if inv.photo_path %}
+<div class="card"><h2>Photo</h2>
+  {% if inv.photo_path.endswith('.pdf') %}<a href="{{ url_for('uploaded_file', name=inv.photo_path) }}" target="_blank" rel="noopener">Open PDF</a>
+  {% else %}<a href="{{ url_for('uploaded_file', name=inv.photo_path) }}" target="_blank" rel="noopener"><img src="{{ url_for('uploaded_file', name=inv.photo_path) }}" alt="Invoice" style="max-width:100%;max-height:520px;border-radius:8px;border:1px solid var(--line)"></a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

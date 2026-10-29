@@ -1,0 +1,39 @@
+{# Photo reader: fills the form from a photo. Needs window.READER = {kind, supplierId, fields} #}
+<div class="reader">
+  <input type="file" id="photo" name="photo" accept=".jpg,.jpeg,.png,.pdf,image/*" capture="environment">
+  <button type="button" class="secondary" id="read-btn" disabled>Read photo</button>
+  <span id="read-msg" class="reader-msg" role="status"></span>
+</div>
+<script>
+(function () {
+  const cfg = window.READER, file = document.getElementById('photo');
+  const btn = document.getElementById('read-btn'), msg = document.getElementById('read-msg');
+  const say = (t, c) => { msg.textContent = t; msg.className = 'reader-msg ' + (c || ''); };
+  file.addEventListener('change', () => { btn.disabled = !file.files.length; say(''); });
+  btn.addEventListener('click', async () => {
+    const fd = new FormData();
+    fd.append('kind', cfg.kind); fd.append('supplier_id', cfg.supplierId);
+    fd.append('photo', file.files[0]);
+    btn.disabled = true; say('Reading...');
+    try {
+      const r = await fetch('{{ url_for("read_photo") }}', {method: 'POST', body: fd,
+        headers: {'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content}});
+      const j = await r.json();
+      if (!r.ok) { say(j.error || 'Could not read the photo.', 'err'); return; }
+      const set = (name, v) => { const el = document.querySelector('[name="' + name + '"]');
+                                 if (el && v !== null && v !== undefined && v !== '') el.value = v; };
+      set(cfg.numberField, j.number); set(cfg.dateField, j.date);
+      document.querySelectorAll('[name^="qty_"],[name^="ret_"],[name^="price_"]').forEach(el => {
+        if (!el.name.startsWith('price_') || cfg.kind === 'invoice') el.value = ''; });
+      j.lines.forEach(l => {
+        set('qty_' + l.material_id, l.qty || '');
+        set('ret_' + l.material_id, l.returned || '');
+        set('price_' + l.material_id, l.price);
+      });
+      say(j.lines.length + ' read' + (j.unmatched.length ? '. Not matched: ' + j.unmatched.join(', ') : '')
+          + '. Check before saving.', j.unmatched.length ? 'err' : 'ok');
+    } catch (e) { say('Could not read the photo.', 'err'); }
+    finally { btn.disabled = !file.files.length; }
+  });
+})();
+</script>

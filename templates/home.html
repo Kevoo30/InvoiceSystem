@@ -1,43 +1,82 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
+{% macro tile(href, label, path) %}
+<a class="tile" href="{{ href }}">
+  <span class="ic"><svg viewBox="0 0 24 24"><path d="{{ path }}"/></svg></span>
+  <div><b>{{ label }}</b></div>
+</a>
+{% endmacro %}
+{% macro stat(n, label, alert=false) %}
+<div class="stat {{ 'alert' if alert }}"><div class="n">{{ n }}</div><div class="l">{{ label }}</div></div>
+{% endmacro %}
 {% block content %}
-<div class="page-head">
-  <div><h1>Welcome, {{ user.name }}</h1><p class="sub">Here is where things stand today.</p></div>
-</div>
+{% set d = dash() %}
+{% set role = user.role %}
+{% set P_ORDER = "M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM6 6h12a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zM9 12h6M9 16h4" %}
+{% set P_TRUCK = "M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a1.7 1.7 0 1 0 0-.01M17 19a1.7 1.7 0 1 0 0-.01" %}
+{% set P_INV = "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5" %}
+{% set P_PLUS = "M12 5v14M5 12h14" %}
+{% set P_TAG = "M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" %}
+{% set P_BLD = "M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M14 9h5a1 1 0 0 1 1 1v11M2 21h20M8 8h2M8 12h2M8 16h2" %}
+{% set P_USERS = "M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14.3c2.2.7 3.5 2.7 3.5 5.7" %}
 
-{% if stats %}
+<div class="page-head"><div><h1>{{ user.name }}</h1></div><span class="badge role">{{ role }}</span></div>
+
+{% if role == 'admin' and stats %}
   {% if stats.unset %}
-  <div class="notice">
-    <span><b>{{ stats.unset }}</b> supplier prices have not been set yet. Invoices cannot be price-checked until they are.</span>
-    <a href="{{ url_for('prices') }}">Set prices &rarr;</a>
-  </div>
+  <div class="notice"><span><b>{{ stats.unset }}</b> prices not set</span><a href="{{ url_for('prices') }}">Set prices &rarr;</a></div>
   {% endif %}
   <div class="stats">
-    <div class="stat"><div class="n">{{ stats.suppliers }}</div><div class="l">Active suppliers</div></div>
-    <div class="stat"><div class="n">{{ stats.materials }}</div><div class="l">Materials tracked</div></div>
-    <div class="stat {{ 'alert' if stats.unset }}"><div class="n">{{ stats.unset }}</div><div class="l">Prices not set</div></div>
-    <div class="stat"><div class="n">{{ stats.users }}</div><div class="l">Active users</div></div>
+    {{ stat(d.held, 'Invoices on hold', d.held > 0) }}
+    {{ stat(d.blocked|money, 'Blocked (KES)', d.blocked > 0) }}
+    {{ stat(d.open_orders, 'Open orders') }}
+    {{ stat(d.deliveries, 'Deliveries this month') }}
+    {{ stat(stats.unset, 'Prices not set', stats.unset > 0) }}
+    {{ stat(stats.suppliers, 'Suppliers') }}
   </div>
-
-  <h2 class="section">Manage</h2>
-  <div class="tiles">
-    <a class="tile" href="{{ url_for('prices') }}">
-      <span class="ic"><svg viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg></span>
-      <div><b>Material prices</b><span>Update prices and view the full history of changes.</span></div>
-    </a>
-    <a class="tile" href="{{ url_for('suppliers') }}">
-      <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M14 9h5a1 1 0 0 1 1 1v11M2 21h20M8 8h2M8 12h2M8 16h2"/></svg></span>
-      <div><b>Suppliers</b><span>Add a new supplier and the materials they provide.</span></div>
-    </a>
-    <a class="tile" href="{{ url_for('users') }}">
-      <span class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14.3c2.2.7 3.5 2.7 3.5 5.7"/></svg></span>
-      <div><b>Users</b><span>Create logins and control who can do what.</span></div>
-    </a>
+{% elif role == 'procurement' %}
+  <div class="stats">
+    {{ stat(d.open_orders, 'Open orders') }}
+    {{ stat(d.deliveries, 'Deliveries this month') }}
+    {{ stat(d.held, 'Invoices on hold', d.held > 0) }}
   </div>
-{% else %}
-  <div class="card">
-    <h2>Your role: <span class="badge role">{{ user.role }}</span></h2>
-    <p class="sub">Your working pages (orders, deliveries and invoices) will appear in the menu as they are completed.</p>
+{% elif role == 'finance' %}
+  <div class="stats">
+    {{ stat(d.held, 'On hold', d.held > 0) }}
+    {{ stat(d.clear, 'Clear for payment') }}
+    {{ stat(d.approved, 'Approved, unpaid') }}
+    {{ stat(d.blocked|money, 'Blocked (KES)', d.blocked > 0) }}
+  </div>
+{% elif role == 'storekeeper' %}
+  <div class="stats">
+    {{ stat(d.deliveries, 'Deliveries this month') }}
+    {{ stat(d.with_returns, 'With returns', d.with_returns > 0) }}
   </div>
 {% endif %}
+
+<div class="tiles">
+  {% if role == 'storekeeper' %}
+    {{ tile(url_for('delivery_new'), 'Record delivery', P_PLUS) }}
+    {{ tile(url_for('deliveries'), 'Deliveries', P_TRUCK) }}
+  {% endif %}
+  {% if role in ['procurement', 'admin'] %}
+    {{ tile(url_for('order_new'), 'New order', P_PLUS) }}
+  {% endif %}
+  {% if role in ['procurement', 'finance', 'admin'] %}
+    {{ tile(url_for('orders'), 'Orders', P_ORDER) }}
+  {% endif %}
+  {% if role in ['procurement', 'admin'] %}
+    {{ tile(url_for('delivery_new'), 'Record delivery', P_PLUS) }}
+  {% endif %}
+  {% if role in ['procurement', 'finance', 'admin'] %}
+    {{ tile(url_for('deliveries'), 'Deliveries', P_TRUCK) }}
+    {{ tile(url_for('invoice_new'), 'Enter invoice', P_PLUS) }}
+    {{ tile(url_for('invoices'), 'Invoices', P_INV) }}
+  {% endif %}
+  {% if role == 'admin' %}
+    {{ tile(url_for('prices'), 'Material prices', P_TAG) }}
+    {{ tile(url_for('suppliers'), 'Suppliers', P_BLD) }}
+    {{ tile(url_for('users'), 'Users', P_USERS) }}
+  {% endif %}
+</div>
 {% endblock %}

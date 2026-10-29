@@ -2,7 +2,7 @@
 {% block title %}Price history{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Price history</h1><p class="sub">{{ material.name }} ({{ material.unit }}) supplied by {{ supplier.name }}</p></div>
+  <div><h1>Price history</h1><p class="sub">{{ material.name }} &middot; {{ supplier.name }}</p></div>
   <a class="btn secondary" href="{{ url_for('prices') }}">&larr; Back to prices</a>
 </div>
 <div class="card flush scroll">

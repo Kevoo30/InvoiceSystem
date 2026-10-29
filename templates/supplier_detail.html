@@ -22,7 +22,6 @@
 
 <div class="card" style="max-width:720px">
   <h2>Add a material to this supplier</h2>
-  <p class="sub">Choose a material already in the system, or create a new one.</p>
   <form method="post" action="{{ url_for('supplier_add_material', supplier_id=supplier.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="material_id">Existing material</label>
@@ -30,7 +29,7 @@
       <option value="">Choose a material</option>
       {% for m in others %}<option value="{{ m.id }}">{{ m.name }} ({{ m.unit }})</option>{% endfor %}
     </select>
-    <p class="muted" style="margin:18px 0 0">Or create a new material. Include the size in the name, for example PVC pipe 2".</p>
+    <p class="muted" style="margin:18px 0 0">New material</p>
     <div class="row">
       <div style="flex:1;min-width:220px"><label for="new_name">New material name</label><input id="new_name" name="new_name" type="text" class="w100"></div>
       <div><label for="unit">Unit</label>

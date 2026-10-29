@@ -2,6 +2,7 @@
 
 Part 1: login + roles, admin price changes (history kept), add supplier/materials,
         admin user management.
+Part 2 (screens.py): orders, deliveries, invoices, photo reader, dashboards.
 """
 import os
 import secrets
@@ -22,6 +23,7 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 from werkzeug.security import check_password_hash, generate_password_hash  # noqa: E402
 
 import config  # noqa: E402
+from screens import register_screens  # noqa: E402
 from models import (  # noqa: E402
     AuditLog, Base, Material, Supplier, SupplierPrice, User,
 )
@@ -389,6 +391,7 @@ def create_app(database_url: str | None = None, testing: bool = False) -> Flask:
             g.db.commit()
         return redirect(url_for("users"))
 
+    register_screens(app, access, log, current_price_row)
     return app
 
 

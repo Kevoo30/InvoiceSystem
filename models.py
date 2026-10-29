@@ -99,9 +99,13 @@ class POLine(Base):
 
 
 class DeliveryNote(Base):
+    """What physically arrived. Linked to the supplier (always) and to a
+    purchase order only when one exists, because many suppliers' paperwork
+    carries no LPO number."""
     __tablename__ = "delivery_notes"
     id = Column(Integer, primary_key=True)
-    po_id = Column(ForeignKey("purchase_orders.id"), nullable=False)
+    supplier_id = Column(ForeignKey("suppliers.id"), nullable=False)
+    po_id = Column(ForeignKey("purchase_orders.id"), nullable=True)
     note_number = Column(String(50), nullable=True)
     delivery_date = Column(Date, default=date.today)
     received_by = Column(ForeignKey("users.id"), nullable=True)
@@ -114,11 +118,32 @@ class DeliveryLine(Base):
     id = Column(Integer, primary_key=True)
     note_id = Column(ForeignKey("delivery_notes.id"), nullable=False)
     material_id = Column(ForeignKey("materials.id"), nullable=False)
-    quantity = Column(Numeric(12, 2), nullable=False)
-    condition = Column(String(20), default="good")  # good, damaged, rejected
-    billed = Column(Boolean, default=False)
+    quantity = Column(Numeric(12, 2), nullable=False)       # arrived on site
+    returned_qty = Column(Numeric(12, 2), nullable=False, default=0)  # sent back
+    condition = Column(String(20), default="good")  # good, damaged
     note = relationship("DeliveryNote", back_populates="lines")
     material = relationship("Material")
+
+
+class DeliveryAllocation(Base):
+    """Records which invoice has already been paid/matched against which
+    delivery quantity, so one delivery can never be billed twice."""
+    __tablename__ = "delivery_allocations"
+    id = Column(Integer, primary_key=True)
+    invoice_id = Column(ForeignKey("invoices.id"), nullable=False)
+    delivery_line_id = Column(ForeignKey("delivery_lines.id"), nullable=False)
+    quantity = Column(Numeric(12, 2), nullable=False)
+
+
+class SupplierAlias(Base):
+    """How a supplier writes a material on its paperwork,
+    e.g. Hekiwa's 'HOOP IRON' -> our 'Hoop iron 17 kg'. Stored normalised."""
+    __tablename__ = "supplier_aliases"
+    __table_args__ = (UniqueConstraint("supplier_id", "alias"),)
+    id = Column(Integer, primary_key=True)
+    supplier_id = Column(ForeignKey("suppliers.id"), nullable=False)
+    material_id = Column(ForeignKey("materials.id"), nullable=False)
+    alias = Column(String(150), nullable=False)
 
 
 class Invoice(Base):
@@ -154,6 +179,9 @@ class MatchResult(Base):
     ordered_qty = Column(Numeric(12, 2))
     delivered_qty = Column(Numeric(12, 2))
     invoiced_qty = Column(Numeric(12, 2))
+    returned_qty = Column(Numeric(12, 2))
+    unit_price = Column(Numeric(12, 2))
+    amount_blocked = Column(Numeric(14, 2), default=0)  # value that must not be paid
     status = Column(String(30), nullable=False)
     reason = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)

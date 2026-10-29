@@ -2,7 +2,7 @@
 {% block title %}Users{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Users</h1><p class="sub">People who can sign in, and what each role is allowed to do.</p></div>
+  <div><h1>Users</h1></div>
 </div>
 <div class="card flush scroll">
   <table>
@@ -23,7 +23,6 @@
 </div>
 <div class="card" style="max-width:560px">
   <h2>Add a user</h2>
-  <p class="sub">Storekeepers record deliveries, procurement raises orders, finance handles invoices.</p>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="name">Full name</label><input id="name" name="name" type="text" class="w100" required>
@@ -32,7 +31,7 @@
     <select id="role" name="role" class="w100" required>
       <option value="" disabled selected>Choose a role</option>
       {% for r in ROLES %}<option>{{ r }}</option>{% endfor %}</select>
-    <label for="password">Temporary password (at least 8 characters)</label>
+    <label for="password">Password (8+ characters)</label>
     <input id="password" name="password" type="password" minlength="8" class="w100" required>
     <div class="actions"><button type="submit">Create user</button></div>
   </form>

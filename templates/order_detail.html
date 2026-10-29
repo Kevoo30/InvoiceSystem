@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ po.po_number }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ po.po_number }} &middot; {{ supplier.name }}</h1><p class="sub">{{ po.order_date }}</p></div>
+  <div class="row"><span class="badge {{ 'ok' if po.status == 'open' else 'role' }}" style="font-size:.9rem;padding:5px 14px">{{ po.status|capitalize }}</span>
+    <a class="btn secondary" href="{{ url_for('orders') }}">&larr; Orders</a></div>
+</div>
+<div class="card flush scroll">
+  <table style="min-width:760px">
+    <thead><tr><th>Material</th><th class="num">Ordered</th><th class="num">Delivered</th><th class="num">Outstanding</th><th class="num">Invoiced</th><th class="num">Price</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td>{{ r.line.material.name }}</td><td class="num">{{ r.ordered|qty }}</td><td class="num">{{ r.delivered|qty }}</td>
+        <td class="num">{{ r.outstanding|qty }}</td><td class="num">{{ r.invoiced|qty }}</td>
+        <td class="num">{{ r.line.agreed_price|money }}</td><td><span class="badge {{ r.cls }}">{{ r.label }}</span></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="grid2">
+  <div class="card"><h2>Deliveries</h2>
+    {% for n in notes %}<div><a href="{{ url_for('delivery_detail', note_id=n.id) }}">{{ n.delivery_date }}{% if n.note_number %} &middot; {{ n.note_number }}{% endif %}</a></div>{% else %}<span class="muted">None</span>{% endfor %}</div>
+  <div class="card"><h2>Invoices</h2>
+    {% for i in invoices %}<div><a href="{{ url_for('invoice_detail', invoice_id=i.id) }}">{{ i.invoice_date }} &middot; {{ i.invoice_number }}</a></div>{% else %}<span class="muted">None</span>{% endfor %}</div>
+</div>
+{% if user.role in ['admin','procurement'] %}
+<form method="post" action="{{ url_for('order_close', po_id=po.id) }}" class="actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button class="secondary" type="submit">{{ 'Close order' if po.status == 'open' else 'Reopen order' }}</button>
+</form>
+{% endif %}
+{% endblock %}

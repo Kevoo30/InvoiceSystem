@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Enter invoice{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Enter invoice</h1></div>
+
+<div class="card" style="max-width:560px">
+  <form method="get">
+    <label for="supplier" style="margin-top:0">Supplier</label>
+    <select id="supplier" name="supplier" class="w100" onchange="this.form.submit()">
+      <option value="">Choose supplier</option>
+      {% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if supplier and supplier.id == s.id }}>{{ s.name }}</option>{% endfor %}
+    </select>
+    <noscript><div class="actions"><button type="submit">Continue</button></div></noscript>
+  </form>
+</div>
+
+{% if supplier %}
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="supplier_id" value="{{ supplier.id }}">
+  <div class="card">
+    {% include "_photo_reader.html" %}
+    <script>window.READER = {kind: 'invoice', supplierId: {{ supplier.id }}, numberField: 'invoice_number', dateField: 'invoice_date'};</script>
+    <div class="grid2">
+      <div><label for="invoice_number">Invoice no.</label><input id="invoice_number" name="invoice_number" type="text" class="w100" maxlength="50" required value="{{ values.get('invoice_number','') }}"></div>
+      <div><label for="invoice_date">Date</label><input id="invoice_date" name="invoice_date" type="date" class="w100" max="{{ today }}" value="{{ values.get('invoice_date') or today }}"></div>
+      <div><label for="po_id">Order</label>
+        <select id="po_id" name="po_id" class="w100"><option value="">None</option>
+          {% for o in orders %}<option value="{{ o.id }}" {{ 'selected' if values.get('po_id') == o.id|string }}>{{ o.po_number }}</option>{% endfor %}
+        </select></div>
+    </div>
+  </div>
+  <div class="card flush scroll">
+    <table>
+      <thead><tr><th>Material</th><th>Unit</th><th class="num">Qty</th><th class="num">Unit price (KES)</th><th class="num">List price</th></tr></thead>
+      <tbody>
+      {% for m in materials %}
+        <tr>
+          <td>{{ m.name }}</td><td class="muted">{{ m.unit }}</td>
+          <td class="num"><input class="qty-in" type="number" name="qty_{{ m.id }}" min="0" step="0.01" value="{{ values.get('qty_%d'|format(m.id), '') }}" aria-label="Quantity {{ m.name }}"></td>
+          <td class="num"><input class="qty-in" type="number" name="price_{{ m.id }}" min="0" step="0.01" value="{{ values.get('price_%d'|format(m.id), '') }}" aria-label="Price {{ m.name }}"></td>
+          <td class="num muted">{% if hints[m.id] is none %}<span class="badge warn">Not set</span>{% else %}{{ hints[m.id]|money }}{% endif %}</td>
+        </tr>
+      {% else %}<tr><td colspan="5" class="empty">No materials for this supplier.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="actions"><button type="submit">Save and check</button><a class="btn secondary" href="{{ url_for('invoices') }}">Cancel</a></div>
+</form>
+{% endif %}
+{% endblock %}

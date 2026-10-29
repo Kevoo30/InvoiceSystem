@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Delivery{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ supplier.name }}</h1><p class="sub">{{ note.delivery_date }}{% if note.note_number %} &middot; {{ note.note_number }}{% endif %}{% if by %} &middot; {{ by.name }}{% endif %}</p></div>
+  <a class="btn secondary" href="{{ url_for('deliveries') }}">&larr; Deliveries</a>
+</div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Material</th><th class="num">Arrived</th><th class="num">Returned</th><th class="num">Kept</th></tr></thead>
+    <tbody>
+    {% for l in lines %}
+      <tr {% if l.returned_qty and l.returned_qty > 0 %}class="flagged"{% endif %}>
+        <td>{{ l.material.name }}</td><td class="num">{{ l.quantity|qty }}</td>
+        <td class="num">{% if l.returned_qty and l.returned_qty > 0 %}<span class="badge err">{{ l.returned_qty|qty }}</span>{% else %}0{% endif %}</td>
+        <td class="num">{{ (l.quantity - (l.returned_qty or 0))|qty }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if note.photo_path %}
+<div class="card"><h2>Photo</h2>
+  {% if note.photo_path.endswith('.pdf') %}<a href="{{ url_for('uploaded_file', name=note.photo_path) }}" target="_blank" rel="noopener">Open PDF</a>
+  {% else %}<a href="{{ url_for('uploaded_file', name=note.photo_path) }}" target="_blank" rel="noopener"><img src="{{ url_for('uploaded_file', name=note.photo_path) }}" alt="Delivery note" style="max-width:100%;max-height:520px;border-radius:8px;border:1px solid var(--line)"></a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -9,14 +9,12 @@
     </a>
     <div>
       <h2>Pay only for what was <em>ordered</em> and <em>delivered</em>.</h2>
-      <p>Every supplier invoice is checked against the purchase order and the delivery note, so each shilling spent on site is accounted for.</p>
     </div>
-    <small>Authorised staff only.</small>
+    <small></small>
   </section>
   <section class="auth-form">
     <div class="auth-card">
       <h1>Sign in</h1>
-      <p class="sub">Use the email and password given to you by the administrator.</p>
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}<div class="flash {{ category }}" style="margin-top:16px">{{ message }}</div>{% endfor %}
       {% endwith %}

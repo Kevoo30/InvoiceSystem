@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf_token() if user else '' }}">
 <title>{% block title %}Invoice Matcher{% endblock %} | Invoice Matcher</title>
 <style>
   :root {
@@ -30,7 +31,7 @@
     border:1px solid rgba(184,146,74,.55);flex:none}
   .brand-mark svg{width:20px;height:20px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
   .brand-name{color:#fff;font-family:var(--serif);font-size:1.12rem;font-weight:600;line-height:1.15}
-  .brand-sub{color:#8d9ab0;font-size:.72rem;letter-spacing:.09em;text-transform:uppercase}
+  .brand-sub{color:#8d9ab0;font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap}
   .nav{padding:14px 12px;flex:1;overflow-y:auto}
   .nav-label{color:#76849b;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;padding:14px 10px 6px}
   .nav-link{display:flex;align-items:center;gap:12px;padding:10px 12px;margin:2px 0;border-radius:8px;
@@ -41,6 +42,7 @@
   .nav-link.active svg{stroke:var(--accent)}
   .side-foot{padding:14px 20px;color:#6f7d94;font-size:.75rem;border-top:1px solid rgba(255,255,255,.07)}
 
+  .scrim{display:none;position:fixed;inset:0;background:rgba(10,20,36,.5);z-index:25}
   .content-wrap{margin-left:252px;min-height:100vh;display:flex;flex-direction:column}
   .topbar{height:60px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;
     gap:14px;padding:0 28px;position:sticky;top:0;z-index:20}
@@ -79,6 +81,14 @@
   .card tbody tr:hover td{background:#fafbfd}
   .card td:first-child{font-weight:500}
   td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .card tr.group td{background:#f1f3f8;color:var(--navy-800);font-family:var(--serif);font-weight:600;font-size:.95rem;
+    padding:9px 14px;border-bottom:1px solid var(--line);border-top:1px solid var(--line)}
+  .card tbody tr.group:hover td{background:#f1f3f8}
+  .nowrap{white-space:nowrap}
+  .unit{font-size:.82rem}
+  .inline-edit{display:flex;gap:8px;align-items:center}
+  .inline-edit input[type=number]{width:130px;text-align:right}
+  .inline-edit input[type=date]{width:150px}
   .empty{text-align:center;color:var(--muted);padding:28px 14px!important}
 
   .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.76rem;font-weight:600;white-space:nowrap}
@@ -125,6 +135,23 @@
   .tile b{display:block;font-size:1rem;margin-bottom:2px;color:var(--navy-900)}
   .tile span{color:var(--muted);font-size:.9rem}
 
+  /* ---------- operations ---------- */
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .tabs a{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;font-size:.88rem;font-weight:500}
+  .tabs a.on{background:var(--navy-800);border-color:var(--navy-800);color:#fff}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+  .qty-in{width:110px;text-align:right}
+  .reader{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:4px 0 8px}
+  .reader-msg{font-weight:500}
+  .reader-msg.err{color:var(--err)} .reader-msg.ok{color:var(--ok)}
+  .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
+  .sum div{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:14px 18px;box-shadow:var(--shadow)}
+  .sum b{display:block;font-family:var(--serif);font-size:1.45rem;color:var(--navy-900);font-variant-numeric:tabular-nums}
+  .sum span{color:var(--muted);font-size:.8rem}
+  .sum .bad b{color:var(--err)} .sum .good b{color:var(--ok)}
+  tr.flagged td{background:#fffaf9!important}
+
   /* ---------- sign-in page ---------- */
   .auth-main{min-height:100vh}
   .auth{display:grid;grid-template-columns:1.05fr 1fr;min-height:100vh}
@@ -141,7 +168,8 @@
 
   @media (max-width:860px){
     .sidebar{transform:translateX(-100%)}
-    .nav-toggle:checked ~ .sidebar{transform:none;box-shadow:0 0 0 100vmax rgba(10,20,36,.45)}
+    .nav-toggle:checked ~ .sidebar{transform:none}
+    .nav-toggle:checked ~ .scrim{display:block}
     .content-wrap{margin-left:0}
     .burger{display:block}
     .topbar{padding:0 14px}
@@ -167,6 +195,24 @@
     <div class="nav-label">Overview</div>
     <a class="nav-link {{ 'active' if ep == 'home' }}" href="{{ url_for('home') }}">
       <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Dashboard</a>
+    {% set role = user.role %}
+    {% if role in ['admin','procurement','finance'] %}
+    <div class="nav-label">Operations</div>
+    {% endif %}
+    {% if role in ['admin','procurement','finance'] %}
+    <a class="nav-link {{ 'active' if ep.startswith('order') }}" href="{{ url_for('orders') }}">
+      <svg viewBox="0 0 24 24"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM6 6h12a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zM9 12h6M9 16h4"/></svg>Orders</a>
+    {% endif %}
+    {% if role in ['admin','storekeeper','procurement','finance'] %}
+    {% if role == 'storekeeper' %}<div class="nav-label">Store</div>{% endif %}
+    <a class="nav-link {{ 'active' if ep.startswith('deliver') }}" href="{{ url_for('deliveries') }}">
+      <svg viewBox="0 0 24 24"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a1.7 1.7 0 1 0 0-.01M17 19a1.7 1.7 0 1 0 0-.01"/></svg>Deliveries</a>
+    {% endif %}
+    {% if role in ['admin','procurement','finance'] %}
+    <a class="nav-link {{ 'active' if ep.startswith('invoice') }}" href="{{ url_for('invoices') }}">
+      <svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/></svg>Invoices
+      {% if held_invoices() %}<span class="badge err" style="margin-left:auto">{{ held_invoices() }}</span>{% endif %}</a>
+    {% endif %}
     {% if user.role == 'admin' %}
     <div class="nav-label">Administration</div>
     <a class="nav-link {{ 'active' if ep in ['prices','price_history','change_price'] }}" href="{{ url_for('prices') }}">
@@ -177,8 +223,9 @@
       <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14.3c2.2.7 3.5 2.7 3.5 5.7"/></svg>Users</a>
     {% endif %}
   </nav>
-  <div class="side-foot">Invoice and delivery note matching</div>
+  <div class="side-foot">{{ user.role|capitalize }}</div>
 </aside>
+<label for="nav-toggle" class="scrim" aria-label="Close menu"></label>
 <div class="content-wrap">
   <header class="topbar">
     <label for="nav-toggle" class="burger" aria-label="Open menu"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></label>

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Invoices{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Invoices</h1><a class="btn" href="{{ url_for('invoice_new') }}">+ Enter invoice</a></div>
+<div class="toolbar tabs">
+  <a class="{{ 'on' if not wanted }}" href="{{ url_for('invoices') }}">All</a>
+  <a class="{{ 'on' if wanted == 'hold' }}" href="{{ url_for('invoices', show='hold') }}">On hold</a>
+  <a class="{{ 'on' if wanted == 'clear' }}" href="{{ url_for('invoices', show='clear') }}">Clear</a>
+  <a class="{{ 'on' if wanted == 'done' }}" href="{{ url_for('invoices', show='done') }}">Approved / paid</a>
+</div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Date</th><th>Supplier</th><th>Invoice no.</th><th class="num">Total</th><th class="num">Blocked</th><th class="num">Payable</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="nowrap">{{ r.inv.invoice_date }}</td><td>{{ r.supplier }}</td><td>{{ r.inv.invoice_number }}</td>
+        <td class="num">{{ r.summary.total|money }}</td>
+        <td class="num">{% if r.summary.blocked > 0 %}<b style="color:var(--err)">{{ r.summary.blocked|money }}</b>{% else %}0.00{% endif %}</td>
+        <td class="num">{{ r.summary.payable|money }}</td>
+        <td><span class="badge {{ r.cls }}">{{ r.state }}</span></td>
+        <td class="num"><a href="{{ url_for('invoice_detail', invoice_id=r.inv.id) }}">Open &rarr;</a></td>
+      </tr>
+    {% else %}<tr><td colspan="8" class="empty">No invoices.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
