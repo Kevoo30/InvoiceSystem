@@ -11,7 +11,7 @@ import json
 import os
 import re
 from datetime import datetime
-from difflib import get_close_matches
+from difflib import SequenceMatcher
 
 from sqlalchemy import select
 
@@ -46,6 +46,41 @@ def normalise(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).split())
 
 
+def _words(text: str) -> set:
+    """Lower-case words; letters split from digits (D12MM -> d 12 mm); KGS -> kg; plurals dropped."""
+    text = re.sub(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", " ", (text or "").lower().replace("&", " and "))
+    out = set()
+    for w in re.sub(r"[^a-z0-9]+", " ", text).split():
+        if w in ("kgs", "kilo", "kilos"):
+            w = "kg"
+        elif len(w) > 3 and w.endswith("s"):
+            w = w[:-1]
+        out.add(w)
+    return out
+
+
+def _score(a_text: str, b_text: str) -> float:
+    a, b = _words(a_text), _words(b_text)
+    if not a or not b:
+        return 0.0
+    shared = a & b
+    overlap = len(shared) / len(a | b)
+    inside = 0.9 * len(shared) / len(a) if a <= b else 0.0      # 'HOOP IRON' in 'Hoop iron 17 kg'
+    spelling = 0.8 * SequenceMatcher(None, " ".join(sorted(a)), " ".join(sorted(b))).ratio()
+    return max(overlap, inside, spelling)
+
+
+def best_match(text: str, candidates, threshold=0.6, gap=0.05):
+    """candidates: [(id, name)]. Returns (id or None, ambiguous).
+    Two near-equal best matches count as ambiguous, so the person chooses."""
+    scored = sorted(((_score(text, name), key) for key, name in candidates), key=lambda t: -t[0])
+    if not scored or scored[0][0] < threshold:
+        return None, False
+    if len(scored) > 1 and scored[1][0] >= scored[0][0] - gap:
+        return None, True
+    return scored[0][1], False
+
+
 def map_lines(session, supplier_id: int, lines: list[dict], material_ids: dict):
     """Match item names to this supplier's materials.
 
@@ -64,9 +99,9 @@ def map_lines(session, supplier_id: int, lines: list[dict], material_ids: dict):
         key = normalise(raw)
         mid = aliases.get(key) or by_name.get(key)
         if mid is None and key:
-            close = get_close_matches(key, list(by_name) + list(aliases), n=1, cutoff=0.82)
-            if close:
-                mid = by_name.get(close[0]) or aliases.get(close[0])
+            found, _ambiguous = best_match(raw, list(material_ids.items()))
+            if found is not None:
+                mid = found
         if mid is None or mid not in material_ids:
             unmatched.append(raw or "(blank)")
             continue

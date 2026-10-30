@@ -14,7 +14,7 @@ from decimal import Decimal, InvalidOperation
 from flask import (
     abort, flash, g, jsonify, redirect, render_template, request, send_from_directory, url_for,
 )
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from werkzeug.utils import secure_filename
 
@@ -486,35 +486,72 @@ def register_screens(app, access, log, current_price_row):
                        lines=[{"material_id": mid, **v} for mid, v in mapped.items()])
 
     # ---------------------------------------------------------------- dashboard
-    def dash():
-        """Counts for the home page. Same keys for every role; the page shows its own."""
-        first = date.today().replace(day=1)
-        count = lambda q: g.db.scalar(q) or 0
-        unpaid_with_results = count(
-            select(func.count(func.distinct(MatchResult.invoice_id)))
-            .join(Invoice, Invoice.id == MatchResult.invoice_id)
-            .where(Invoice.payment_status == "unpaid"))
-        held = held_invoices()
-        blocked = g.db.scalar(
-            select(func.coalesce(func.sum(MatchResult.amount_blocked), 0))
-            .join(Invoice, Invoice.id == MatchResult.invoice_id)
-            .where(Invoice.payment_status == "unpaid")) or 0
-        return {
-            "deliveries": count(select(func.count()).select_from(DeliveryNote)
-                                .where(DeliveryNote.delivery_date >= first)),
-            "with_returns": count(
-                select(func.count(func.distinct(DeliveryNote.id)))
-                .join(DeliveryLine, DeliveryLine.note_id == DeliveryNote.id)
-                .where(DeliveryNote.delivery_date >= first, DeliveryLine.returned_qty > 0)),
-            "open_orders": count(select(func.count()).select_from(PurchaseOrder)
-                                 .where(PurchaseOrder.status == "open")),
-            "held": held,
-            "clear": max(unpaid_with_results - held, 0),
-            "approved": count(select(func.count()).select_from(Invoice)
-                              .where(Invoice.payment_status == "approved")),
-            "blocked": Decimal(str(blocked)),
-        }
+    def dash(q="", supplier_id=None, show=""):
+        """Rows for the home page tables. Filters: search text, supplier, invoice status."""
+        role = g.user.role
+        q = (q or "").strip()[:60]
+        out = {"suppliers": active_suppliers(), "invoices": [], "notes": [], "orders": []}
 
+        def search(*columns):
+            return or_(*[func.lower(c).contains(q.lower(), autoescape=True) for c in columns])
+
+        # latest delivery notes (every role)
+        nq = (select(DeliveryNote, Supplier.name)
+              .join(Supplier, Supplier.id == DeliveryNote.supplier_id)
+              .order_by(DeliveryNote.delivery_date.desc(), DeliveryNote.id.desc()).limit(10))
+        if supplier_id:
+            nq = nq.where(DeliveryNote.supplier_id == supplier_id)
+        if q:
+            nq = nq.where(search(Supplier.name, DeliveryNote.note_number))
+        for note, supplier_name in g.db.execute(nq).all():
+            out["notes"].append({
+                "id": note.id, "date": note.delivery_date, "number": note.note_number,
+                "supplier": supplier_name, "lines": len(note.lines),
+                "returned": any(Decimal(str(l.returned_qty or 0)) > 0 for l in note.lines)})
+
+        if role not in ("admin", "procurement", "finance"):
+            return out
+
+        # latest invoices with their check result
+        iq = (select(Invoice, Supplier.name)
+              .join(Supplier, Supplier.id == Invoice.supplier_id)
+              .order_by(Invoice.invoice_date.desc(), Invoice.id.desc()).limit(200))
+        if supplier_id:
+            iq = iq.where(Invoice.supplier_id == supplier_id)
+        if q:
+            iq = iq.where(search(Supplier.name, Invoice.invoice_number))
+        for inv, supplier_name in g.db.execute(iq).all():
+            results = invoice_results(inv.id)
+            state, cls = invoice_state(inv, results)
+            if show == "hold" and state not in ("On hold", "Not checked"):
+                continue
+            if show == "clear" and state != "Clear for payment":
+                continue
+            if show == "done" and state not in ("Approved for payment", "Paid"):
+                continue
+            out["invoices"].append({"inv": inv, "supplier": supplier_name, "state": state,
+                                    "cls": cls, "summary": matching.invoice_summary(inv, results)})
+            if len(out["invoices"]) == 10:
+                break
+
+        # open orders with how much of each has arrived
+        oq = (select(PurchaseOrder, Supplier.name)
+              .join(Supplier, Supplier.id == PurchaseOrder.supplier_id)
+              .where(PurchaseOrder.status == "open")
+              .order_by(PurchaseOrder.id.desc()).limit(8))
+        if supplier_id:
+            oq = oq.where(PurchaseOrder.supplier_id == supplier_id)
+        if q:
+            oq = oq.where(search(Supplier.name, PurchaseOrder.po_number))
+        for po, supplier_name in g.db.execute(oq).all():
+            rows = order_rows(po)
+            ordered = sum(r["ordered"] for r in rows)
+            arrived = sum(min(r["delivered"], r["ordered"]) for r in rows)
+            out["orders"].append({"id": po.id, "number": po.po_number, "supplier": supplier_name,
+                                  "date": po.order_date,
+                                  "percent": int(arrived * 100 / ordered) if ordered else 0})
+        return out
+    
     app.jinja_env.globals["dash"] = dash
 
     # ------------------------------------------------------------------- orders
@@ -651,3 +688,4 @@ def register_screens(app, access, log, current_price_row):
         log("order_status", f"{po.po_number} -> {po.status}")
         g.db.commit()
         return redirect(url_for("order_detail", po_id=po.id))
+

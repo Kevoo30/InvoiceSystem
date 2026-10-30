@@ -48,7 +48,7 @@ def test_wrong_password(client):
 
 
 def test_admin_login_and_pages(client):
-    assert b"Welcome, Ann Admin" in login(client, "admin@x.com").data
+    assert b"Ann Admin" in login(client, "admin@x.com").data
     for path in ["/admin/prices", "/admin/suppliers", "/admin/users"]:
         assert client.get(path).status_code == 200
 
@@ -100,7 +100,7 @@ def test_future_dated_price_not_current_yet(client):
                 data={"price": "999", "effective_from": "2099-01-01"})
     page = client.get(f"/admin/prices?supplier={sid}").data
     assert b"200.00" in page
-    assert b"999.00" not in page.split(b"<table>")[1]   # table only, not the flash message
+    assert b"999.00" not in page.split(b"<tbody>")[1]   # table only, not the flash message
 
 
 def test_invalid_price_rejected(client):

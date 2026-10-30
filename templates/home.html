@@ -1,82 +1,136 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
-{% macro tile(href, label, path) %}
-<a class="tile" href="{{ href }}">
-  <span class="ic"><svg viewBox="0 0 24 24"><path d="{{ path }}"/></svg></span>
-  <div><b>{{ label }}</b></div>
-</a>
-{% endmacro %}
-{% macro stat(n, label, alert=false) %}
-<div class="stat {{ 'alert' if alert }}"><div class="n">{{ n }}</div><div class="l">{{ label }}</div></div>
-{% endmacro %}
 {% block content %}
-{% set d = dash() %}
+{% set q = request.args.get('q', '') %}
+{% set sel = request.args.get('supplier', '')|int(0) %}
+{% set show = request.args.get('show', '') %}
+{% set d = dash(q, sel or None, show) %}
 {% set role = user.role %}
-{% set P_ORDER = "M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM6 6h12a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zM9 12h6M9 16h4" %}
-{% set P_TRUCK = "M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a1.7 1.7 0 1 0 0-.01M17 19a1.7 1.7 0 1 0 0-.01" %}
-{% set P_INV = "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5" %}
-{% set P_PLUS = "M12 5v14M5 12h14" %}
-{% set P_TAG = "M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" %}
-{% set P_BLD = "M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M14 9h5a1 1 0 0 1 1 1v11M2 21h20M8 8h2M8 12h2M8 16h2" %}
-{% set P_USERS = "M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14.3c2.2.7 3.5 2.7 3.5 5.7" %}
+{% set has_money = role in ['admin', 'procurement', 'finance'] %}
+<style>
+  .actions-top{display:flex;flex-wrap:wrap;gap:10px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:#fff;border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:22px}
+  .toolbar > div{display:flex;flex-direction:column;gap:4px}
+  .toolbar label{margin:0;font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+  .toolbar .grow{flex:1 1 240px}
+  .toolbar input[type=search]{width:100%}
+  .sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 10px}
+  .sec-head h2{margin:0;font-family:var(--serif);font-size:1.15rem;font-weight:600;color:var(--navy-900)}
+  .sec-head a{font-weight:600;font-size:.88rem}
+  .meter{width:110px;height:8px;flex:none;appearance:none;-webkit-appearance:none;border:0;border-radius:99px;
+    overflow:hidden;background:#e8ebf1;color:var(--accent);vertical-align:middle}
+  .meter::-webkit-progress-bar{background:#e8ebf1}
+  .meter::-webkit-progress-value{background:var(--accent);border-radius:99px}
+  .meter::-moz-progress-bar{background:var(--accent);border-radius:99px}
+  .meter.full{color:var(--ok)}
+  .meter.full::-webkit-progress-value{background:var(--ok)}
+  .meter.full::-moz-progress-bar{background:var(--ok)}
+  .pct{display:inline-block;width:42px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+</style>
 
-<div class="page-head"><div><h1>{{ user.name }}</h1></div><span class="badge role">{{ role }}</span></div>
+<div class="page-head">
+  <div><h1>{{ user.name }}</h1></div>
+  <div class="actions-top">
+    {% if role in ['procurement', 'admin'] %}<a class="btn" href="{{ url_for('order_new') }}">+ New order</a>{% endif %}
+    {% if role in ['storekeeper', 'procurement', 'admin'] %}<a class="btn" href="{{ url_for('delivery_new') }}">+ Record delivery</a>{% endif %}
+    {% if has_money %}<a class="btn" href="{{ url_for('invoice_new') }}">+ Enter invoice</a>{% endif %}
+    {% if role == 'admin' %}<a class="btn secondary" href="{{ url_for('prices') }}">Material prices</a>{% endif %}
+  </div>
+</div>
 
-{% if role == 'admin' and stats %}
-  {% if stats.unset %}
-  <div class="notice"><span><b>{{ stats.unset }}</b> prices not set</span><a href="{{ url_for('prices') }}">Set prices &rarr;</a></div>
-  {% endif %}
-  <div class="stats">
-    {{ stat(d.held, 'Invoices on hold', d.held > 0) }}
-    {{ stat(d.blocked|money, 'Blocked (KES)', d.blocked > 0) }}
-    {{ stat(d.open_orders, 'Open orders') }}
-    {{ stat(d.deliveries, 'Deliveries this month') }}
-    {{ stat(stats.unset, 'Prices not set', stats.unset > 0) }}
-    {{ stat(stats.suppliers, 'Suppliers') }}
-  </div>
-{% elif role == 'procurement' %}
-  <div class="stats">
-    {{ stat(d.open_orders, 'Open orders') }}
-    {{ stat(d.deliveries, 'Deliveries this month') }}
-    {{ stat(d.held, 'Invoices on hold', d.held > 0) }}
-  </div>
-{% elif role == 'finance' %}
-  <div class="stats">
-    {{ stat(d.held, 'On hold', d.held > 0) }}
-    {{ stat(d.clear, 'Clear for payment') }}
-    {{ stat(d.approved, 'Approved, unpaid') }}
-    {{ stat(d.blocked|money, 'Blocked (KES)', d.blocked > 0) }}
-  </div>
-{% elif role == 'storekeeper' %}
-  <div class="stats">
-    {{ stat(d.deliveries, 'Deliveries this month') }}
-    {{ stat(d.with_returns, 'With returns', d.with_returns > 0) }}
-  </div>
+{% if role == 'admin' and stats and stats.unset %}
+<div class="notice"><span><b>{{ stats.unset }}</b> prices not set</span><a href="{{ url_for('prices') }}">Set prices &rarr;</a></div>
 {% endif %}
 
-<div class="tiles">
-  {% if role == 'storekeeper' %}
-    {{ tile(url_for('delivery_new'), 'Record delivery', P_PLUS) }}
-    {{ tile(url_for('deliveries'), 'Deliveries', P_TRUCK) }}
+<form class="toolbar" method="get" action="{{ url_for('home') }}">
+  <div class="grow"><label for="q">Search</label>
+    <input id="q" name="q" type="search" value="{{ q }}" placeholder="Supplier or number" maxlength="60"></div>
+  <div><label for="supplier">Supplier</label>
+    <select id="supplier" name="supplier" onchange="this.form.submit()" style="min-width:220px">
+      <option value="">All suppliers</option>
+      {% for s in d.suppliers %}<option value="{{ s.id }}" {{ 'selected' if sel == s.id }}>{{ s.name }}</option>{% endfor %}
+    </select></div>
+  {% if has_money %}
+  <div><label for="show">Invoices</label>
+    <select id="show" name="show" onchange="this.form.submit()">
+      <option value="" {{ 'selected' if not show }}>All</option>
+      <option value="hold" {{ 'selected' if show == 'hold' }}>On hold</option>
+      <option value="clear" {{ 'selected' if show == 'clear' }}>Clear for payment</option>
+      <option value="done" {{ 'selected' if show == 'done' }}>Approved or paid</option>
+    </select></div>
   {% endif %}
-  {% if role in ['procurement', 'admin'] %}
-    {{ tile(url_for('order_new'), 'New order', P_PLUS) }}
-  {% endif %}
-  {% if role in ['procurement', 'finance', 'admin'] %}
-    {{ tile(url_for('orders'), 'Orders', P_ORDER) }}
-  {% endif %}
-  {% if role in ['procurement', 'admin'] %}
-    {{ tile(url_for('delivery_new'), 'Record delivery', P_PLUS) }}
-  {% endif %}
-  {% if role in ['procurement', 'finance', 'admin'] %}
-    {{ tile(url_for('deliveries'), 'Deliveries', P_TRUCK) }}
-    {{ tile(url_for('invoice_new'), 'Enter invoice', P_PLUS) }}
-    {{ tile(url_for('invoices'), 'Invoices', P_INV) }}
-  {% endif %}
-  {% if role == 'admin' %}
-    {{ tile(url_for('prices'), 'Material prices', P_TAG) }}
-    {{ tile(url_for('suppliers'), 'Suppliers', P_BLD) }}
-    {{ tile(url_for('users'), 'Users', P_USERS) }}
-  {% endif %}
+  <div style="flex-direction:row;gap:8px">
+    <button type="submit">Search</button>
+    {% if q or sel or show %}<a class="btn secondary" href="{{ url_for('home') }}">Clear</a>{% endif %}
+  </div>
+</form>
+
+{% if has_money %}
+<div class="sec-head"><h2>Invoices</h2><a href="{{ url_for('invoices', show=show or None) }}">All invoices &rarr;</a></div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Date</th><th>Invoice no.</th><th>Supplier</th><th class="num">Total (KES)</th><th class="num">Held back</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for r in d.invoices %}
+      <tr>
+        <td class="nowrap">{{ r.inv.invoice_date }}</td>
+        <td>{{ r.inv.invoice_number }}</td>
+        <td>{{ r.supplier }}</td>
+        <td class="num">{{ r.summary.total|money }}</td>
+        <td class="num">{% if r.summary.blocked > 0 %}<span class="badge err">{{ r.summary.blocked|money }}</span>{% else %}0.00{% endif %}</td>
+        <td><span class="badge {{ r.cls }}">{{ r.state }}</span></td>
+        <td class="num"><a href="{{ url_for('invoice_detail', invoice_id=r.inv.id) }}">Open &rarr;</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="empty">No invoices found.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
+{% endif %}
+
+<div class="sec-head"><h2>Delivery notes</h2><a href="{{ url_for('deliveries', supplier=sel or None) }}">All deliveries &rarr;</a></div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Date</th><th>Note no.</th><th>Supplier</th><th class="num">Items</th><th>Returns</th><th></th></tr></thead>
+    <tbody>
+    {% for r in d.notes %}
+      <tr>
+        <td class="nowrap">{{ r.date }}</td>
+        <td class="muted">{{ r.number or '' }}</td>
+        <td>{{ r.supplier }}</td>
+        <td class="num">{{ r.lines }}</td>
+        <td>{% if r.returned %}<span class="badge warn">Goods returned</span>{% endif %}</td>
+        <td class="num"><a href="{{ url_for('delivery_detail', note_id=r.id) }}">Open &rarr;</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty">No delivery notes found.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if has_money %}
+<div class="sec-head"><h2>Open orders</h2><a href="{{ url_for('orders', show='open') }}">All orders &rarr;</a></div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Date</th><th>Order no.</th><th>Supplier</th><th>Delivered</th><th></th></tr></thead>
+    <tbody>
+    {% for r in d.orders %}
+      <tr>
+        <td class="nowrap">{{ r.date }}</td>
+        <td>{{ r.number }}</td>
+        <td>{{ r.supplier }}</td>
+        <td><progress class="meter {{ 'full' if r.percent >= 100 }}" max="100" value="{{ r.percent }}"></progress>
+            <span class="pct">{{ r.percent }}%</span></td>
+        <td class="num"><a href="{{ url_for('order_detail', po_id=r.id) }}">Open &rarr;</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="empty">No open orders found.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 {% endblock %}
