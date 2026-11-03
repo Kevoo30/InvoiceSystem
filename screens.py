@@ -1,10 +1,13 @@
 """Part 2 of the website: record deliveries, enter invoices, see the match result.
 
 Who can do what
-  storekeeper : record deliveries, view deliveries
-  procurement : raise orders, record deliveries, enter and re-check invoices
-  finance     : view orders and deliveries, enter and re-check invoices, approve, mark paid
+  storekeeper : record deliveries; view deliveries
+  procurement : raise orders; view orders, deliveries and invoices
+  finance     : enter and re-check invoices, approve, mark paid; view orders and deliveries
   admin       : everything
+
+Nobody except admin can order, receive and bill the same goods.
+Labour and service invoices are in labour.py.
 """
 import os
 import secrets
@@ -20,6 +23,7 @@ from werkzeug.utils import secure_filename
 
 import ai_reader
 import matching
+from labour import register_labour
 from models import (
     DeliveryLine, DeliveryNote, Invoice, InvoiceLine, Material, MatchResult,
     POLine, PurchaseOrder, Supplier, SupplierPrice, User,
@@ -204,7 +208,7 @@ def register_screens(app, access, log, current_price_row):
                                selected=supplier_id)
 
     @app.route("/deliveries/new", methods=["GET", "POST"])
-    @access("storekeeper", "procurement")
+    @access("storekeeper")
     def delivery_new():
         suppliers = active_suppliers()
         today = date.today().isoformat()
@@ -245,7 +249,10 @@ def register_screens(app, access, log, current_price_row):
                 continue
             lines.append((m, qty, ret))
         if not lines and not errors:
-            errors.append("Enter the quantity that arrived for at least one item.")
+            photo_chosen = bool(request.files.get("photo") and request.files["photo"].filename)
+            errors.append("The photo is attached but no items are entered. Press Read photo, "
+                          "or type the quantities in." if photo_chosen else
+                          "Enter the quantity that arrived for at least one item.")
 
         photo = request.files.get("photo")
         upload_error = check_upload(photo)
@@ -307,7 +314,7 @@ def register_screens(app, access, log, current_price_row):
         return render_template("invoices.html", rows=rows, wanted=wanted)
 
     @app.route("/invoices/new", methods=["GET", "POST"])
-    @access("procurement", "finance")
+    @access("finance")
     def invoice_new():
         suppliers = active_suppliers()
         today = date.today().isoformat()
@@ -360,7 +367,10 @@ def register_screens(app, access, log, current_price_row):
                 continue
             lines.append((m, qty, price))
         if not lines and not errors:
-            errors.append("Enter the quantity and price for at least one item.")
+            photo_chosen = bool(request.files.get("photo") and request.files["photo"].filename)
+            errors.append("The photo is attached but no items are entered. Press Read photo, "
+                          "or type the quantities and prices in." if photo_chosen else
+                          "Enter the quantity and price for at least one item.")
 
         photo = request.files.get("photo")
         upload_error = check_upload(photo)
@@ -410,7 +420,7 @@ def register_screens(app, access, log, current_price_row):
                                clear=matching.invoice_is_clear_for_payment(results))
 
     @app.route("/invoices/<int:invoice_id>/recheck", methods=["POST"])
-    @access("procurement", "finance")
+    @access("finance")
     def invoice_recheck(invoice_id):
         inv = g.db.get(Invoice, invoice_id) or abort(404)
         if inv.payment_status != "unpaid":
@@ -451,16 +461,17 @@ def register_screens(app, access, log, current_price_row):
             g.db.commit()
             flash("Invoice marked as paid.", "ok")
         return redirect(url_for("invoice_detail", invoice_id=inv.id))
+
     # ------------------------------------------------------------ photo reader
     MEDIA = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
              ".pdf": "application/pdf"}
 
     @app.route("/api/read-photo", methods=["POST"])
-    @access("storekeeper", "procurement", "finance")
+    @access("storekeeper", "finance")
     def read_photo():
         kind = request.form.get("kind", "")
-        allowed = {"delivery": ("admin", "storekeeper", "procurement"),
-                   "invoice": ("admin", "procurement", "finance")}
+        allowed = {"delivery": ("admin", "storekeeper"),
+                   "invoice": ("admin", "finance")}
         if kind not in allowed or g.user.role not in allowed[kind]:
             abort(403)
         supplier = g.db.get(Supplier, request.form.get("supplier_id", type=int) or 0)
@@ -551,7 +562,7 @@ def register_screens(app, access, log, current_price_row):
                                   "date": po.order_date,
                                   "percent": int(arrived * 100 / ordered) if ordered else 0})
         return out
-    
+
     app.jinja_env.globals["dash"] = dash
 
     # ------------------------------------------------------------------- orders
@@ -689,3 +700,5 @@ def register_screens(app, access, log, current_price_row):
         g.db.commit()
         return redirect(url_for("order_detail", po_id=po.id))
 
+    # ------------------------------------------------- labour and service invoices
+    register_labour(app, access, log, parse_money, parse_past_date, check_upload, store_upload)

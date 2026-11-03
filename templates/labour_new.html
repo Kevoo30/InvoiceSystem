@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Enter labour invoice{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Enter labour invoice</h1></div>
+<form method="post" enctype="multipart/form-data" class="card" style="max-width:720px">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <label for="contractor" style="margin-top:0">Who did the work</label>
+  <input id="contractor" name="contractor" type="text" class="w100" maxlength="120" required value="{{ values.get('contractor','') }}">
+  <div class="grid2">
+    <div><label for="invoice_number">Invoice no. (if any)</label><input id="invoice_number" name="invoice_number" type="text" class="w100" maxlength="50" value="{{ values.get('invoice_number','') }}"></div>
+    <div><label for="invoice_date">Date</label><input id="invoice_date" name="invoice_date" type="date" class="w100" max="{{ today }}" value="{{ values.get('invoice_date') or today }}"></div>
+  </div>
+  <label for="description">Work done</label>
+  <input id="description" name="description" type="text" class="w100" maxlength="1000" required placeholder="e.g. 1st floor interior floor finishing, 14 units" value="{{ values.get('description','') }}">
+  <label for="amount">Amount (KES)</label>
+  <input id="amount" name="amount" type="number" step="any" min="0.01" required class="w100" value="{{ values.get('amount','') }}">
+  <label for="photo">Photo of the invoice (optional)</label>
+  <input id="photo" name="photo" type="file" accept=".jpg,.jpeg,.png,.pdf,image/*" capture="environment">
+  <div class="actions"><button type="submit">Save</button><a class="btn secondary" href="{{ url_for('labour') }}">Cancel</a></div>
+</form>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Labour invoices{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Labour &amp; service invoices</h1>{% if user.role in ['admin','finance'] %}<a class="btn" href="{{ url_for('labour_new') }}">+ Enter labour invoice</a>{% endif %}</div>
+<div class="toolbar tabs">
+  <a class="{{ 'on' if not show }}" href="{{ url_for('labour') }}">All</a>
+  <a class="{{ 'on' if show == 'pending' }}" href="{{ url_for('labour', show='pending') }}">Waiting for site</a>
+  <a class="{{ 'on' if show == 'certified' }}" href="{{ url_for('labour', show='certified') }}">Certified</a>
+  <a class="{{ 'on' if show == 'approved' }}" href="{{ url_for('labour', show='approved') }}">Approved</a>
+  <a class="{{ 'on' if show == 'paid' }}" href="{{ url_for('labour', show='paid') }}">Paid</a>
+</div>
+<div class="card flush scroll">
+  <table>
+    <thead><tr><th>Date</th><th>Who</th><th>Work</th><th class="num">Amount (KES)</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="nowrap">{{ r.invoice_date }}</td><td>{{ r.contractor }}</td>
+        <td class="muted">{{ r.description[:70] }}{{ '...' if r.description|length > 70 }}</td>
+        <td class="num">{{ r.amount|money }}</td>
+        <td><span class="badge {{ r.status|labour_class }}">{{ r.status|labour_state }}</span></td>
+        <td class="num"><a href="{{ url_for('labour_detail', labour_id=r.id) }}">Open &rarr;</a></td>
+      </tr>
+    {% else %}<tr><td colspan="6" class="empty">No labour invoices.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

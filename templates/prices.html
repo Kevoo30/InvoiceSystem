@@ -37,7 +37,7 @@
         <td class="muted nowrap">{{ r.since or '' }}</td>
         <td>
           <div class="inline-edit">
-            <input form="{{ fid }}" type="number" name="price" step="0.01" min="0.01" required placeholder="New price" aria-label="New price">
+            <input form="{{ fid }}" type="number" name="price" step="any" min="0.01" required placeholder="New price" aria-label="New price">
             <input form="{{ fid }}" type="date" name="effective_from" value="{{ today }}" aria-label="Effective from">
             <button class="small" form="{{ fid }}" type="submit">Save</button>
           </div>

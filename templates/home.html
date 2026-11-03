@@ -33,8 +33,8 @@
   <div><h1>{{ user.name }}</h1></div>
   <div class="actions-top">
     {% if role in ['procurement', 'admin'] %}<a class="btn" href="{{ url_for('order_new') }}">+ New order</a>{% endif %}
-    {% if role in ['storekeeper', 'procurement', 'admin'] %}<a class="btn" href="{{ url_for('delivery_new') }}">+ Record delivery</a>{% endif %}
-    {% if has_money %}<a class="btn" href="{{ url_for('invoice_new') }}">+ Enter invoice</a>{% endif %}
+    {% if role in ['storekeeper', 'admin'] %}<a class="btn" href="{{ url_for('delivery_new') }}">+ Record delivery</a>{% endif %}
+    {% if role in ['finance', 'admin'] %}<a class="btn" href="{{ url_for('invoice_new') }}">+ Enter invoice</a>{% endif %}
     {% if role == 'admin' %}<a class="btn secondary" href="{{ url_for('prices') }}">Material prices</a>{% endif %}
   </div>
 </div>

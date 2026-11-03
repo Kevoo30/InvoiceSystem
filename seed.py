@@ -1,4 +1,4 @@
-"""Loads the 8 suppliers and their materials as starting data.
+"""Loads the suppliers and their materials as starting data.
 
 Prices are left empty (None): the admin sets them via the price-change screen.
 Quantities already bought are NOT stored here; they belong in purchase orders.
@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 import config
+import labour  # noqa: F401  (registers the labour_invoices table)
 from models import Base, Supplier, Material, SupplierPrice
 
 # supplier -> list of (material name, unit)
@@ -26,6 +27,12 @@ DATA = {
         ('Steel nails 2" packet', "packet"),
         ('Ordinary nails 2", 1/2 kg', "packet"),
         ("Hoop iron 17 kg", "roll"),
+        ('Ordinary nails 2", 1 kg', "kg"),
+        ('Ordinary nails 3", 1 kg', "kg"),
+        ('Ordinary nails 4", 1 kg', "kg"),
+        ('Ordinary nails 4" 50 kg bag', "bag"),
+        ("Binding wire 17 kg", "coil"),
+        ("Frame long 8.4x2 set, without vent", "set"),
     ],
     "Genesis Chuma Ltd": [
         ("Coast calcium white", "bag"),
@@ -56,6 +63,9 @@ DATA = {
         ("Petrol", "litre"),
         ("Oil", "piece"),
         ("Kitchen sink, single bowl", "piece"),
+        ('Boss connector 4x1 1/2"', "piece"),
+        ('R-bush 2x1 1/2"', "piece"),
+        ('PVC pipe 4" HG', "piece"),
     ],
     "Garden Vineyard Hardware & Electricals": [
         ("Tembo cement", "bag"),
@@ -76,6 +86,26 @@ DATA = {
     ],
     "Kiomba Limited": [
         ("River sand", "load"),
+    ],
+    # The name is not printed clearly on the photos. Rename it on the Suppliers page if needed.
+    "Irrigation & Plumbing Supplier (INV/2026/00180)": [
+        ('PPR pipe 3/4" Danco', "piece"),
+        ("PPR male elbow 25x20", "piece"),
+        ("PPR female elbow 25x20", "piece"),
+        ('GI socket 1/2"', "piece"),
+        ('GI male plug 1/2"', "piece"),
+        ('GI hex nipple 1/2"', "piece"),
+        ("PPR male socket 25x20", "piece"),
+        ("Cobra concealed stopcock", "piece"),
+        ('PVC pipe 4"', "piece"),
+        ('PVC pipe 3"', "piece"),
+        ('PVC pipe 1 1/2"', "piece"),
+        ('PVC pipe 2"', "piece"),
+        ('PVC tee 4"', "piece"),
+        ("PVC bend 45 deg", "piece"),
+        ("PVC tee with plug", "piece"),
+        ("Boss connector", "piece"),
+        ("Tangit 1000 ml", "piece"),
     ],
 }
 

@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from PIL import Image
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 from werkzeug.security import generate_password_hash
 
@@ -76,11 +76,14 @@ def test_every_role_gets_a_dashboard_and_the_right_pages(c):
         assert login(c, who).status_code == 200
         assert c.get("/").status_code == 200
     expect = {"store": {"/deliveries": 200, "/deliveries/new": 200, "/orders": 403,
-                        "/invoices": 403, "/orders/new": 403},
+                        "/invoices": 403, "/invoices/new": 403, "/orders/new": 403},
               "proc": {"/orders": 200, "/orders/new": 200, "/deliveries": 200,
-                       "/invoices": 200, "/admin/prices": 403},
-              "fin": {"/orders": 200, "/invoices": 200, "/invoices/new": 200,
-                      "/orders/new": 403}}
+                       "/invoices": 200, "/deliveries/new": 403, "/invoices/new": 403,
+                       "/admin/prices": 403},
+              "fin": {"/orders": 200, "/deliveries": 200, "/invoices": 200,
+                      "/invoices/new": 200, "/orders/new": 403, "/deliveries/new": 403},
+              "admin": {"/orders/new": 200, "/deliveries/new": 200, "/invoices/new": 200,
+                        "/admin/prices": 200}}
     for who, pages in expect.items():
         login(c, who)
         for path, code in pages.items():
@@ -159,6 +162,10 @@ def test_photo_reader_rules(c):
     login(c, "store")
     f = lambda: {"kind": "invoice", "supplier_id": sup, "photo": (io.BytesIO(png()), "a.png")}
     assert c.post("/api/read-photo", data=f()).status_code == 403      # storekeeper, invoice
+    login(c, "proc")
+    assert c.post("/api/read-photo", data=f()).status_code == 403      # procurement reads nothing
+    d = {"kind": "delivery", "supplier_id": sup, "photo": (io.BytesIO(png()), "a.png")}
+    assert c.post("/api/read-photo", data=d).status_code == 403
     login(c, "fin")
     bad = {"kind": "invoice", "supplier_id": sup, "photo": (io.BytesIO(b"nope"), "a.png")}
     assert c.post("/api/read-photo", data=bad).status_code == 400
@@ -230,3 +237,92 @@ def test_dashboard_tables_show_real_rows(c):
     login(c, "store")
     page = c.get("/").get_data(as_text=True)
     assert "DN-77" in page and "81231" not in page and "Open orders" not in page
+
+
+def test_nobody_can_order_receive_and_bill_the_same_goods(c):
+    sup, m = ids(c)
+    blade = m["Blade"]
+    login(c, "proc")
+    assert c.post("/deliveries/new", data={"supplier_id": sup, f"qty_{blade}": "5"}).status_code == 403
+    assert c.post("/invoices/new", data={"supplier_id": sup, "invoice_number": "X1",
+                                         f"qty_{blade}": "5", f"price_{blade}": "110"}).status_code == 403
+    assert c.post("/invoices/1/recheck").status_code == 403
+    login(c, "fin")
+    assert c.post("/orders/new", data={"supplier_id": sup, f"qty_{blade}": "5"}).status_code == 403
+    assert c.post("/deliveries/new", data={"supplier_id": sup, f"qty_{blade}": "5"}).status_code == 403
+    login(c, "store")
+    assert c.post("/orders/new", data={"supplier_id": sup, f"qty_{blade}": "5"}).status_code == 403
+    assert c.post("/invoices/1/approve").status_code == 403
+    page = ""
+    for who, hidden in (("proc", ("Record delivery", "Enter invoice")),
+                        ("fin", ("New order", "Record delivery")),
+                        ("store", ("New order", "Enter invoice"))):
+        login(c, who)
+        page = c.get("/").get_data(as_text=True)
+        assert not any(label in page for label in hidden), (who, hidden)
+
+
+def test_photo_without_items_says_what_to_do(c):
+    sup, _ = ids(c)
+    login(c, "store")
+    r = c.post("/deliveries/new", data={"supplier_id": sup, "photo": (io.BytesIO(png()), "a.png")},
+               follow_redirects=True)
+    assert b"Press Read photo" in r.data
+    r = c.post("/deliveries/new", data={"supplier_id": sup}, follow_redirects=True)
+    assert b"at least one item" in r.data and b"Press Read photo" not in r.data
+    login(c, "fin")
+    r = c.post("/invoices/new", data={"supplier_id": sup, "invoice_number": "P1",
+                                      "photo": (io.BytesIO(png()), "a.png")}, follow_redirects=True)
+    assert b"Press Read photo" in r.data
+
+
+def test_number_boxes_accept_any_decimal_and_step_by_one(c):
+    sup, _ = ids(c)
+    login(c, "fin")
+    page = c.get(f"/invoices/new?supplier={sup}").get_data(as_text=True)
+    assert 'step="any"' in page and 'step="0.01"' not in page
+    login(c, "admin")
+    assert 'step="any"' in c.get(f"/admin/prices?supplier={sup}").get_data(as_text=True)
+
+
+def test_all_photo_prices_are_loaded_and_every_name_exists(c):
+    with Session(c.engine) as s:
+        missing = [(sup, mat) for sup, mat, _, _ in load_prices.PRICES
+                   if s.scalar(select(Supplier.id).where(Supplier.name == sup)) is None
+                   or s.scalar(select(Material.id).where(Material.name == mat)) is None]
+        assert missing == []
+        priced = s.scalar(select(func.count(func.distinct(SupplierPrice.id))).where(
+            SupplierPrice.unit_price.is_not(None)))
+        assert priced == len(load_prices.PRICES)
+        assert s.scalar(select(Supplier).where(Supplier.name.like("Irrigation%"))) is not None
+
+
+def test_labour_invoice_needs_site_certification_before_payment(c):
+    data = {"contractor": "Elijah Kinyua", "description": "1st floor floor finishing, 14 units",
+            "amount": "93000", "invoice_number": "40"}
+    for who in ("store", "proc"):
+        login(c, who)
+        assert c.post("/labour/new", data=data).status_code == 403
+    login(c, "fin")
+    r = c.post("/labour/new", data=data, follow_redirects=True)
+    assert b"Waiting for site certification" in r.data
+    assert b"already been entered" in c.post("/labour/new", data=data, follow_redirects=True).data
+    dup = dict(data, invoice_number="41")
+    assert b"duplicate" in c.post("/labour/new", data=dup, follow_redirects=True).data
+    # finance cannot approve before the site certifies
+    c.post("/labour/1/approve")
+    assert b"Waiting for site" in c.get("/labour/1").data
+    assert c.post("/labour/1/certify").status_code == 403          # finance cannot certify
+    login(c, "proc")
+    assert c.get("/labour").status_code == 200 and c.post("/labour/1/certify").status_code == 403
+    login(c, "store")
+    assert c.post("/labour/1/approve").status_code == 403
+    c.post("/labour/1/certify")
+    login(c, "fin")
+    c.post("/labour/1/paid")                                        # not approved yet
+    assert b"Work certified" in c.get("/labour/1").data
+    c.post("/labour/1/approve")
+    c.post("/labour/1/paid")
+    page = c.get("/labour").get_data(as_text=True)
+    assert "Paid" in page and "93,000.00" in page
+    assert "Labour invoices" in c.get("/invoices").get_data(as_text=True)

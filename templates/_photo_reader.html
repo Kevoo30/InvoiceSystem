@@ -9,7 +9,10 @@
   const cfg = window.READER, file = document.getElementById('photo');
   const btn = document.getElementById('read-btn'), msg = document.getElementById('read-msg');
   const say = (t, c) => { msg.textContent = t; msg.className = 'reader-msg ' + (c || ''); };
-  file.addEventListener('change', () => { btn.disabled = !file.files.length; say(''); });
+  file.addEventListener('change', () => {
+    btn.disabled = !file.files.length; say('');
+    if (file.files.length) btn.click();          // read the photo as soon as it is chosen
+  });
   btn.addEventListener('click', async () => {
     const fd = new FormData();
     fd.append('kind', cfg.kind); fd.append('supplier_id', cfg.supplierId);

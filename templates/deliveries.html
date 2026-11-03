@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Deliveries</h1>
-  {% if user.role in ['admin','storekeeper','procurement'] %}<a class="btn" href="{{ url_for('delivery_new') }}">+ Record delivery</a>{% endif %}
+  {% if user.role in ['admin','storekeeper'] %}<a class="btn" href="{{ url_for('delivery_new') }}">+ Record delivery</a>{% endif %}
 </div>
 <div class="card">
   <form method="get" class="row">

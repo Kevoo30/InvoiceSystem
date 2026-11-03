@@ -37,8 +37,8 @@
       {% for m in materials %}
         <tr>
           <td>{{ m.name }}</td><td class="muted">{{ m.unit }}</td>
-          <td class="num"><input class="qty-in" type="number" name="qty_{{ m.id }}" min="0" step="0.01" value="{{ values.get('qty_%d'|format(m.id), '') }}" aria-label="Quantity {{ m.name }}"></td>
-          <td class="num"><input class="qty-in" type="number" name="price_{{ m.id }}" min="0" step="0.01" value="{{ values.get('price_%d'|format(m.id), '') }}" aria-label="Price {{ m.name }}"></td>
+          <td class="num"><input class="qty-in" type="number" name="qty_{{ m.id }}" min="0" step="any" value="{{ values.get('qty_%d'|format(m.id), '') }}" aria-label="Quantity {{ m.name }}"></td>
+          <td class="num"><input class="qty-in" type="number" name="price_{{ m.id }}" min="0" step="any" value="{{ values.get('price_%d'|format(m.id), '') }}" aria-label="Price {{ m.name }}"></td>
           <td class="num muted">{% if hints[m.id] is none %}<span class="badge warn">Not set</span>{% else %}{{ hints[m.id]|money }}{% endif %}</td>
         </tr>
       {% else %}<tr><td colspan="5" class="empty">No materials for this supplier.</td></tr>{% endfor %}

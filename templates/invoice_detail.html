@@ -33,7 +33,7 @@
 </div>
 
 <div class="actions">
-  {% if inv.payment_status == 'unpaid' %}
+  {% if inv.payment_status == 'unpaid' and user.role in ['finance','admin'] %}
   <form method="post" action="{{ url_for('invoice_recheck', invoice_id=inv.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="secondary" type="submit">Check again</button></form>
   {% endif %}

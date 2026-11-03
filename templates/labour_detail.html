@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Labour invoice{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ inv.contractor }}</h1><p class="sub">{{ inv.invoice_date }}{% if inv.invoice_number %} &middot; No. {{ inv.invoice_number }}{% endif %}</p></div>
+  <div class="row"><span class="badge {{ inv.status|labour_class }}" style="font-size:.9rem;padding:5px 14px">{{ inv.status|labour_state }}</span>
+  <a class="btn secondary" href="{{ url_for('labour') }}">&larr; Labour invoices</a></div>
+</div>
+<div class="card" style="max-width:720px">
+  <p><b>Work done</b><br>{{ inv.description }}</p>
+  <p><b>Amount</b><br>KES {{ inv.amount|money }}</p>
+  <p class="muted">Entered by {{ who.get(inv.entered_by, '-') }}
+    {% if inv.certified_by %} &middot; certified by {{ who.get(inv.certified_by, '-') }}{% endif %}
+    {% if inv.approved_by %} &middot; approved by {{ who.get(inv.approved_by, '-') }}{% endif %}</p>
+  {% if inv.photo_path %}<p><a href="{{ url_for('uploaded_file', name=inv.photo_path) }}" target="_blank">View photo</a></p>{% endif %}
+</div>
+<div class="actions">
+  {% if inv.status == 'pending' and user.role in ['storekeeper','admin'] %}
+  <form method="post" action="{{ url_for('labour_certify', labour_id=inv.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Certify work is done</button></form>
+  {% endif %}
+  {% if inv.status == 'certified' and user.role in ['finance','admin'] %}
+  <form method="post" action="{{ url_for('labour_approve', labour_id=inv.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Approve for payment</button></form>
+  {% endif %}
+  {% if inv.status == 'approved' and user.role in ['finance','admin'] %}
+  <form method="post" action="{{ url_for('labour_paid', labour_id=inv.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Mark as paid</button></form>
+  {% endif %}
+</div>
+{% endblock %}
