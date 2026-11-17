@@ -23,7 +23,7 @@ from werkzeug.utils import secure_filename
 
 import ai_reader
 import matching
-from labour import register_labour
+from labour import LabourInvoice, register_labour
 from models import (
     DeliveryLine, DeliveryNote, Invoice, InvoiceLine, Material, MatchResult,
     POLine, PurchaseOrder, Supplier, SupplierPrice, User,
@@ -564,6 +564,68 @@ def register_screens(app, access, log, current_price_row):
         return out
 
     app.jinja_env.globals["dash"] = dash
+
+    def todo(limit=8):
+        """Plain-language list of what needs this person to act now."""
+        role = g.user.role
+        items = []
+
+        def add(tone, text, url, label):
+            items.append({"tone": tone, "text": text, "url": url, "label": label})
+
+        if role in ("admin", "finance"):
+            q = (select(Invoice, Supplier.name).join(Supplier, Supplier.id == Invoice.supplier_id)
+                 .where(Invoice.payment_status != "paid")
+                 .order_by(Invoice.invoice_date.desc(), Invoice.id.desc()).limit(60))
+            for inv, supplier_name in g.db.execute(q).all():
+                results = invoice_results(inv.id)
+                state, _ = invoice_state(inv, results)
+                where = url_for("invoice_detail", invoice_id=inv.id)
+                who = f"Invoice {inv.invoice_number} from {supplier_name}"
+                if state == "On hold":
+                    held = matching.invoice_summary(inv, results)["blocked"]
+                    add("err", f"{who} is on hold. KES {held:,.2f} must not be paid yet.",
+                        where, "Review")
+                elif state == "Not checked":
+                    add("warn", f"{who} has not been checked yet.", where, "Check")
+                elif state == "Clear for payment":
+                    add("ok", f"{who} matches. It can be approved for payment.", where, "Approve")
+                elif state == "Approved for payment":
+                    add("ok", f"{who} is approved. Mark it paid once the money is sent.",
+                        where, "Open")
+        if role in ("admin", "storekeeper"):
+            for r in g.db.scalars(select(LabourInvoice).where(LabourInvoice.status == "pending")
+                                  .order_by(LabourInvoice.id)).all():
+                add("warn", f"{r.contractor} billed KES {Decimal(str(r.amount)):,.2f} for "
+                    f"\"{r.description[:50]}\". Confirm the work is done.",
+                    url_for("labour_detail", labour_id=r.id), "Certify")
+        if role in ("admin", "finance"):
+            for r in g.db.scalars(select(LabourInvoice).where(
+                    LabourInvoice.status.in_(("certified", "approved")))
+                    .order_by(LabourInvoice.id)).all():
+                step = "Approve it" if r.status == "certified" else "Mark it paid"
+                add("ok", f"{r.contractor}'s labour invoice (KES {Decimal(str(r.amount)):,.2f}) "
+                    f"is {'certified' if r.status == 'certified' else 'approved'}. {step}.",
+                    url_for("labour_detail", labour_id=r.id), "Open")
+        if role in ("admin", "procurement"):
+            oq = (select(PurchaseOrder, Supplier.name)
+                  .join(Supplier, Supplier.id == PurchaseOrder.supplier_id)
+                  .where(PurchaseOrder.status == "open").order_by(PurchaseOrder.id.desc()).limit(30))
+            for po, supplier_name in g.db.execute(oq).all():
+                rows = order_rows(po)
+                ordered = sum(r["ordered"] for r in rows)
+                arrived = sum(min(r["delivered"], r["ordered"]) for r in rows)
+                pct = int(arrived * 100 / ordered) if ordered else 0
+                where = url_for("order_detail", po_id=po.id)
+                if pct >= 100:
+                    add("ok", f"Order {po.po_number} from {supplier_name} has fully arrived. "
+                        "Close it if nothing else is expected.", where, "Open")
+                else:
+                    add("warn", f"Order {po.po_number} from {supplier_name}: "
+                        f"{pct}% has arrived.", where, "Open")
+        return {"items": items[:limit], "more": max(len(items) - limit, 0)}
+
+    app.jinja_env.globals["todo"] = todo
 
     # ------------------------------------------------------------------- orders
     def order_rows(po):

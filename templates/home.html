@@ -1,136 +1,128 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}Home{% endblock %}
 {% block content %}
 {% set q = request.args.get('q', '') %}
-{% set sel = request.args.get('supplier', '')|int(0) %}
 {% set show = request.args.get('show', '') %}
-{% set d = dash(q, sel or None, show) %}
+{% set d = dash(q, None, show) %}
+{% set t = todo() %}
 {% set role = user.role %}
 {% set has_money = role in ['admin', 'procurement', 'finance'] %}
+{% set purpose = {
+  'admin': 'Everything in one place.',
+  'finance': 'Check supplier invoices and pay only what was ordered and delivered.',
+  'procurement': 'Order materials and follow them until they arrive.',
+  'storekeeper': 'Record what arrives on site, and confirm work that was done.'}[role] %}
 <style>
-  .actions-top{display:flex;flex-wrap:wrap;gap:10px}
-  .toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:#fff;border:1px solid var(--line);
-    border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:22px}
-  .toolbar > div{display:flex;flex-direction:column;gap:4px}
-  .toolbar label{margin:0;font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
-  .toolbar .grow{flex:1 1 240px}
-  .toolbar input[type=search]{width:100%}
-  .sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:26px 0 10px}
+  .hello{margin:0 0 4px}
+  .purpose{color:var(--muted);margin:0 0 22px;max-width:60ch}
+  .todo{list-style:none;margin:0;padding:0}
+  .todo li{display:flex;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid var(--line)}
+  .todo li:first-child{border-top:0}
+  .dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--ok)}
+  .dot.err{background:var(--err)}.dot.warn{background:var(--accent)}
+  .todo .txt{flex:1;line-height:1.4}
+  .allclear{padding:22px 18px;color:var(--muted)}
+  .sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:30px 0 10px;gap:12px;flex-wrap:wrap}
   .sec-head h2{margin:0;font-family:var(--serif);font-size:1.15rem;font-weight:600;color:var(--navy-900)}
-  .sec-head a{font-weight:600;font-size:.88rem}
-  .meter{width:110px;height:8px;flex:none;appearance:none;-webkit-appearance:none;border:0;border-radius:99px;
-    overflow:hidden;background:#e8ebf1;color:var(--accent);vertical-align:middle}
-  .meter::-webkit-progress-bar{background:#e8ebf1}
-  .meter::-webkit-progress-value{background:var(--accent);border-radius:99px}
-  .meter::-moz-progress-bar{background:var(--accent);border-radius:99px}
-  .meter.full{color:var(--ok)}
-  .meter.full::-webkit-progress-value{background:var(--ok)}
-  .meter.full::-moz-progress-bar{background:var(--ok)}
-  .pct{display:inline-block;width:42px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  .find{display:flex;gap:8px;flex-wrap:wrap}
+  .find input[type=search]{min-width:230px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+  .chips a{padding:5px 13px;border-radius:99px;border:1px solid #cfd5df;background:#fff;color:var(--navy-800);
+    text-decoration:none;font-size:.86rem;font-weight:600}
+  .chips a.on{background:var(--navy-800);border-color:var(--navy-800);color:#fff}
+  .two{line-height:1.3}.two small{display:block;color:var(--muted)}
+  .actions-top{display:flex;flex-wrap:wrap;gap:10px}
 </style>
 
 <div class="page-head">
-  <div><h1>{{ user.name }}</h1></div>
+  <div><h1 class="hello">Hello, {{ user.name.split(' ')[0] }}</h1></div>
   <div class="actions-top">
     {% if role in ['procurement', 'admin'] %}<a class="btn" href="{{ url_for('order_new') }}">+ New order</a>{% endif %}
     {% if role in ['storekeeper', 'admin'] %}<a class="btn" href="{{ url_for('delivery_new') }}">+ Record delivery</a>{% endif %}
     {% if role in ['finance', 'admin'] %}<a class="btn" href="{{ url_for('invoice_new') }}">+ Enter invoice</a>{% endif %}
-    {% if role == 'admin' %}<a class="btn secondary" href="{{ url_for('prices') }}">Material prices</a>{% endif %}
   </div>
 </div>
+<p class="purpose">{{ purpose }}</p>
 
 {% if role == 'admin' and stats and stats.unset %}
-<div class="notice"><span><b>{{ stats.unset }}</b> prices not set</span><a href="{{ url_for('prices') }}">Set prices &rarr;</a></div>
+<div class="notice"><span><b>{{ stats.unset }}</b> prices are not set yet.</span><a href="{{ url_for('prices') }}">Set prices &rarr;</a></div>
 {% endif %}
 
-<form class="toolbar" method="get" action="{{ url_for('home') }}">
-  <div class="grow"><label for="q">Search</label>
-    <input id="q" name="q" type="search" value="{{ q }}" placeholder="Supplier or number" maxlength="60"></div>
-  <div><label for="supplier">Supplier</label>
-    <select id="supplier" name="supplier" onchange="this.form.submit()" style="min-width:220px">
-      <option value="">All suppliers</option>
-      {% for s in d.suppliers %}<option value="{{ s.id }}" {{ 'selected' if sel == s.id }}>{{ s.name }}</option>{% endfor %}
-    </select></div>
-  {% if has_money %}
-  <div><label for="show">Invoices</label>
-    <select id="show" name="show" onchange="this.form.submit()">
-      <option value="" {{ 'selected' if not show }}>All</option>
-      <option value="hold" {{ 'selected' if show == 'hold' }}>On hold</option>
-      <option value="clear" {{ 'selected' if show == 'clear' }}>Clear for payment</option>
-      <option value="done" {{ 'selected' if show == 'done' }}>Approved or paid</option>
-    </select></div>
+<div class="sec-head" style="margin-top:0"><h2>Needs your attention</h2></div>
+<div class="card flush">
+  {% if t['items'] %}
+  <ul class="todo">
+    {% for i in t['items'] %}
+    <li><span class="dot {{ i.tone }}"></span><span class="txt">{{ i.text }}</span>
+        <a class="btn secondary small" href="{{ i.url }}">{{ i.label }}</a></li>
+    {% endfor %}
+  </ul>
+  {% if t['more'] %}<div class="allclear">and {{ t['more'] }} more.</div>{% endif %}
+  {% else %}
+  <div class="allclear">Nothing is waiting for you. {% if role == 'storekeeper' %}When goods arrive, press <b>Record delivery</b>.{% endif %}</div>
   {% endif %}
-  <div style="flex-direction:row;gap:8px">
-    <button type="submit">Search</button>
-    {% if q or sel or show %}<a class="btn secondary" href="{{ url_for('home') }}">Clear</a>{% endif %}
-  </div>
-</form>
+</div>
+
+<div class="sec-head">
+  <h2>Recent</h2>
+  <form class="find" method="get" action="{{ url_for('home') }}">
+    {% if show %}<input type="hidden" name="show" value="{{ show }}">{% endif %}
+    <input name="q" type="search" value="{{ q }}" placeholder="Search supplier or number" maxlength="60" aria-label="Search">
+    <button type="submit" class="secondary">Search</button>
+    {% if q or show %}<a class="btn secondary" href="{{ url_for('home') }}">Clear</a>{% endif %}
+  </form>
+</div>
+
+{% if has_money and role != 'procurement' %}
+<div class="chips">
+  <a class="{{ 'on' if not show }}" href="{{ url_for('home', q=q or None) }}">All invoices</a>
+  <a class="{{ 'on' if show == 'hold' }}" href="{{ url_for('home', show='hold', q=q or None) }}">On hold</a>
+  <a class="{{ 'on' if show == 'clear' }}" href="{{ url_for('home', show='clear', q=q or None) }}">Ready to pay</a>
+  <a class="{{ 'on' if show == 'done' }}" href="{{ url_for('home', show='done', q=q or None) }}">Paid</a>
+</div>
+{% endif %}
 
 {% if has_money %}
-<div class="sec-head"><h2>Invoices</h2><a href="{{ url_for('invoices', show=show or None) }}">All invoices &rarr;</a></div>
 <div class="card flush scroll">
   <table>
-    <thead><tr><th>Date</th><th>Invoice no.</th><th>Supplier</th><th class="num">Total (KES)</th><th class="num">Held back</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Invoice</th><th class="num">Amount (KES)</th><th>Status</th><th></th></tr></thead>
     <tbody>
     {% for r in d.invoices %}
       <tr>
-        <td class="nowrap">{{ r.inv.invoice_date }}</td>
-        <td>{{ r.inv.invoice_number }}</td>
-        <td>{{ r.supplier }}</td>
-        <td class="num">{{ r.summary.total|money }}</td>
-        <td class="num">{% if r.summary.blocked > 0 %}<span class="badge err">{{ r.summary.blocked|money }}</span>{% else %}0.00{% endif %}</td>
+        <td class="two">{{ r.supplier }}<small>No. {{ r.inv.invoice_number }} &middot; {{ r.inv.invoice_date }}</small></td>
+        <td class="num">{{ r.summary.total|money }}
+          {% if r.summary.blocked > 0 %}<small style="display:block;color:var(--err)">{{ r.summary.blocked|money }} held back</small>{% endif %}</td>
         <td><span class="badge {{ r.cls }}">{{ r.state }}</span></td>
         <td class="num"><a href="{{ url_for('invoice_detail', invoice_id=r.inv.id) }}">Open &rarr;</a></td>
       </tr>
     {% else %}
-      <tr><td colspan="7" class="empty">No invoices found.</td></tr>
+      <tr><td colspan="4" class="empty">No invoices to show.</td></tr>
     {% endfor %}
     </tbody>
   </table>
 </div>
+<p style="margin:8px 2px 0"><a href="{{ url_for('invoices', show=show or None) }}">All invoices &rarr;</a>
+  {% if role in ['finance','admin','procurement'] %} &nbsp;&middot;&nbsp; <a href="{{ url_for('labour') }}">Labour invoices &rarr;</a>{% endif %}</p>
 {% endif %}
 
-<div class="sec-head"><h2>Delivery notes</h2><a href="{{ url_for('deliveries', supplier=sel or None) }}">All deliveries &rarr;</a></div>
+{% if has_money %}<div class="sec-head"><h2>Deliveries</h2></div>{% endif %}
 <div class="card flush scroll">
   <table>
-    <thead><tr><th>Date</th><th>Note no.</th><th>Supplier</th><th class="num">Items</th><th>Returns</th><th></th></tr></thead>
+    <thead><tr><th>Delivery</th><th class="num">Items</th><th></th><th></th></tr></thead>
     <tbody>
     {% for r in d.notes %}
       <tr>
-        <td class="nowrap">{{ r.date }}</td>
-        <td class="muted">{{ r.number or '' }}</td>
-        <td>{{ r.supplier }}</td>
+        <td class="two">{{ r.supplier }}<small>{% if r.number %}No. {{ r.number }} &middot; {% endif %}{{ r.date }}</small></td>
         <td class="num">{{ r.lines }}</td>
         <td>{% if r.returned %}<span class="badge warn">Goods returned</span>{% endif %}</td>
         <td class="num"><a href="{{ url_for('delivery_detail', note_id=r.id) }}">Open &rarr;</a></td>
       </tr>
     {% else %}
-      <tr><td colspan="6" class="empty">No delivery notes found.</td></tr>
+      <tr><td colspan="4" class="empty">No deliveries to show.</td></tr>
     {% endfor %}
     </tbody>
   </table>
 </div>
-
-{% if has_money %}
-<div class="sec-head"><h2>Open orders</h2><a href="{{ url_for('orders', show='open') }}">All orders &rarr;</a></div>
-<div class="card flush scroll">
-  <table>
-    <thead><tr><th>Date</th><th>Order no.</th><th>Supplier</th><th>Delivered</th><th></th></tr></thead>
-    <tbody>
-    {% for r in d.orders %}
-      <tr>
-        <td class="nowrap">{{ r.date }}</td>
-        <td>{{ r.number }}</td>
-        <td>{{ r.supplier }}</td>
-        <td><progress class="meter {{ 'full' if r.percent >= 100 }}" max="100" value="{{ r.percent }}"></progress>
-            <span class="pct">{{ r.percent }}%</span></td>
-        <td class="num"><a href="{{ url_for('order_detail', po_id=r.id) }}">Open &rarr;</a></td>
-      </tr>
-    {% else %}
-      <tr><td colspan="5" class="empty">No open orders found.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+<p style="margin:8px 2px 0"><a href="{{ url_for('deliveries') }}">All deliveries &rarr;</a>
+  {% if role == 'storekeeper' %} &nbsp;&middot;&nbsp; <a href="{{ url_for('labour') }}">Labour work to certify &rarr;</a>{% endif %}</p>
 {% endblock %}

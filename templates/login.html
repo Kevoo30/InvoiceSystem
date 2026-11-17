@@ -9,12 +9,14 @@
     </a>
     <div>
       <h2>Pay only for what was <em>ordered</em> and <em>delivered</em>.</h2>
+      <p>Every supplier invoice is checked against the purchase order and the delivery note, so each shilling spent on site is accounted for.</p>
     </div>
-    <small></small>
+    <small>Authorised staff only.</small>
   </section>
   <section class="auth-form">
     <div class="auth-card">
       <h1>Sign in</h1>
+      <p class="sub">Use the email and password you registered with.</p>
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}<div class="flash {{ category }}" style="margin-top:16px">{{ message }}</div>{% endfor %}
       {% endwith %}
@@ -26,6 +28,7 @@
         <input id="password" name="password" type="password" class="w100" required autocomplete="current-password">
         <div class="actions"><button type="submit" style="width:100%">Sign in</button></div>
       </form>
+      <p class="sub" style="margin-top:18px">No account yet? <a href="{{ url_for('signup') }}">Request access</a></p>
     </div>
   </section>
 </div>

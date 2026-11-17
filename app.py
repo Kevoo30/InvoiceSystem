@@ -1,8 +1,8 @@
 """Flask website for the Invoice & Delivery Note Matching System.
 
-Part 1: login + roles, admin price changes (history kept), add supplier/materials,
-        admin user management.
-Part 2 (screens.py): orders, deliveries, invoices, photo reader, dashboards.
+Part 1: login + roles, sign-up with admin approval, admin price changes (history kept),
+        add supplier/materials, admin user management.
+Part 2: deliveries, invoices, photo entry and matching (see documents.py).
 """
 import os
 import secrets
@@ -23,10 +23,10 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 from werkzeug.security import check_password_hash, generate_password_hash  # noqa: E402
 
 import config  # noqa: E402
-from screens import register_screens  # noqa: E402
 from models import (  # noqa: E402
     AuditLog, Base, Material, Supplier, SupplierPrice, User,
 )
+import docs_models  # noqa: E402,F401  (registers the delivery/invoice tables)
 
 ROLES = ("admin", "procurement", "storekeeper", "finance")
 UNITS = ("piece", "bag", "packet", "roll", "coil", "truckload", "load",
@@ -149,6 +149,9 @@ def create_app(database_url: str | None = None, testing: bool = False) -> Flask:
             email = request.form.get("email", "").strip().lower()
             password = request.form.get("password", "")
             user = g.db.scalar(select(User).where(User.email == email))
+            if user and not user.active and check_password_hash(user.password_hash, password):
+                flash("Your account is waiting for administrator approval.", "error")
+                return render_template("login.html")
             if user and user.active and check_password_hash(user.password_hash, password):
                 session.clear()
                 session["user_id"] = user.id
@@ -166,6 +169,39 @@ def create_app(database_url: str | None = None, testing: bool = False) -> Flask:
     def logout():
         session.clear()
         return redirect(url_for("login"))
+
+    # -------------------------------------------------------------- sign up
+    @app.route("/signup", methods=["GET", "POST"])
+    def signup():
+        """Anyone can request an account, but it stays disabled until an admin
+        enables it on the Users page. Admin cannot be chosen here."""
+        if g.user:
+            return redirect(url_for("home"))
+        form = {"name": "", "email": "", "role": ""}
+        public_roles = [r for r in ROLES if r != "admin"]
+        if request.method == "POST":
+            form["name"] = " ".join(request.form.get("name", "").split())
+            form["email"] = request.form.get("email", "").strip().lower()
+            form["role"] = request.form.get("role", "")
+            password = request.form.get("password", "")
+            if not form["name"] or "@" not in form["email"] or form["role"] not in public_roles:
+                flash("Enter your name, a valid email and a role.", "error")
+            elif len(password) < 8:
+                flash("Password must be at least 8 characters.", "error")
+            elif password != request.form.get("confirm", ""):
+                flash("The two passwords do not match.", "error")
+            elif g.db.scalar(select(User).where(User.email == form["email"])):
+                flash("An account with that email already exists.", "error")
+            else:
+                g.db.add(User(name=form["name"], email=form["email"], role=form["role"],
+                              password_hash=generate_password_hash(password),
+                              active=False))
+                log("signup_requested", f"{form['email']} ({form['role']})")
+                g.db.commit()
+                flash("Account requested. You can sign in once the administrator "
+                      "approves it.", "ok")
+                return redirect(url_for("login"))
+        return render_template("signup.html", form=form, roles=public_roles)
 
     @app.route("/")
     @access()
@@ -391,7 +427,10 @@ def create_app(database_url: str | None = None, testing: bool = False) -> Flask:
             g.db.commit()
         return redirect(url_for("users"))
 
-    register_screens(app, access, log, current_price_row)
+    # ------------------------------------------- deliveries, invoices, matching
+    from documents import register as register_documents
+    register_documents(app, access, log)
+
     return app
 
 

@@ -64,6 +64,9 @@ def ids(c):
         mats = {m.name: m.id for m in s.scalars(select(Material))}
     return sup, mats
 
+def recent(response):
+    """Only the 'Recent' part of the dashboard (the to-do list ignores search)."""
+    return response.get_data(as_text=True).split("<h2>Recent</h2>")[1]
 
 def png():
     b = io.BytesIO()
@@ -223,22 +226,23 @@ def test_dashboard_tables_show_real_rows(c):
                                   f"qty_{hoop}": "8", f"price_{hoop}": "1400"})
     page = c.get("/").get_data(as_text=True)
     assert "81231" in page and "11,200.00" in page and "On hold" in page
-    assert "PO-" in page and "DN-77" in page and "Goods returned" in page
+    assert "must not be paid yet" in page                       # plain-language to-do
+    assert "DN-77" in page and "Goods returned" in page
     # search and filters
-    assert "81231" in c.get("/?q=hekiwa").get_data(as_text=True)
-    assert "81231" not in c.get("/?q=zzzz").get_data(as_text=True)
-    assert "81231" in c.get("/?show=hold").get_data(as_text=True)
-    assert "81231" not in c.get("/?show=clear").get_data(as_text=True)
-    assert "81231" in c.get(f"/?supplier={sup}").get_data(as_text=True)
-    assert "81231" not in c.get(f"/?supplier={sup + 1}").get_data(as_text=True)
-    assert "81231" in c.get("/?q=81231").get_data(as_text=True)
+    assert "81231" in recent(c.get("/?q=hekiwa"))
+    assert "81231" not in recent(c.get("/?q=zzzz"))
+    assert "81231" in recent(c.get("/?show=hold"))
+    assert "81231" not in recent(c.get("/?show=clear"))
+    assert "81231" in recent(c.get("/?q=81231"))
     c.get("/?q=%25%25")                                    # wildcard text must not break it
-    # storekeeper: delivery notes only
+    # procurement follows the order until it arrives
+    login(c, "proc")
+    assert "PO-" in c.get("/").get_data(as_text=True)
+    # storekeeper: deliveries only, and a plain empty message
     login(c, "store")
     page = c.get("/").get_data(as_text=True)
-    assert "DN-77" in page and "81231" not in page and "Open orders" not in page
-
-
+    assert "DN-77" in page and "81231" not in page and "Nothing is waiting" in page
+    
 def test_nobody_can_order_receive_and_bill_the_same_goods(c):
     sup, m = ids(c)
     blade = m["Blade"]
