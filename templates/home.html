@@ -1,128 +1,52 @@
 {% extends "base.html" %}
-{% block title %}Home{% endblock %}
+{% block title %}Dashboard{% endblock %}
 {% block content %}
-{% set q = request.args.get('q', '') %}
-{% set show = request.args.get('show', '') %}
-{% set d = dash(q, None, show) %}
-{% set t = todo() %}
-{% set role = user.role %}
-{% set has_money = role in ['admin', 'procurement', 'finance'] %}
-{% set purpose = {
-  'admin': 'Everything in one place.',
-  'finance': 'Check supplier invoices and pay only what was ordered and delivered.',
-  'procurement': 'Order materials and follow them until they arrive.',
-  'storekeeper': 'Record what arrives on site, and confirm work that was done.'}[role] %}
-<style>
-  .hello{margin:0 0 4px}
-  .purpose{color:var(--muted);margin:0 0 22px;max-width:60ch}
-  .todo{list-style:none;margin:0;padding:0}
-  .todo li{display:flex;align-items:center;gap:14px;padding:14px 18px;border-top:1px solid var(--line)}
-  .todo li:first-child{border-top:0}
-  .dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--ok)}
-  .dot.err{background:var(--err)}.dot.warn{background:var(--accent)}
-  .todo .txt{flex:1;line-height:1.4}
-  .allclear{padding:22px 18px;color:var(--muted)}
-  .sec-head{display:flex;justify-content:space-between;align-items:baseline;margin:30px 0 10px;gap:12px;flex-wrap:wrap}
-  .sec-head h2{margin:0;font-family:var(--serif);font-size:1.15rem;font-weight:600;color:var(--navy-900)}
-  .find{display:flex;gap:8px;flex-wrap:wrap}
-  .find input[type=search]{min-width:230px}
-  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
-  .chips a{padding:5px 13px;border-radius:99px;border:1px solid #cfd5df;background:#fff;color:var(--navy-800);
-    text-decoration:none;font-size:.86rem;font-weight:600}
-  .chips a.on{background:var(--navy-800);border-color:var(--navy-800);color:#fff}
-  .two{line-height:1.3}.two small{display:block;color:var(--muted)}
-  .actions-top{display:flex;flex-wrap:wrap;gap:10px}
-</style>
-
 <div class="page-head">
-  <div><h1 class="hello">Hello, {{ user.name.split(' ')[0] }}</h1></div>
-  <div class="actions-top">
-    {% if role in ['procurement', 'admin'] %}<a class="btn" href="{{ url_for('order_new') }}">+ New order</a>{% endif %}
-    {% if role in ['storekeeper', 'admin'] %}<a class="btn" href="{{ url_for('delivery_new') }}">+ Record delivery</a>{% endif %}
-    {% if role in ['finance', 'admin'] %}<a class="btn" href="{{ url_for('invoice_new') }}">+ Enter invoice</a>{% endif %}
-  </div>
+  <div><h1>Welcome, {{ user.name }}</h1><p class="sub">Here is where things stand today.</p></div>
 </div>
-<p class="purpose">{{ purpose }}</p>
 
-{% if role == 'admin' and stats and stats.unset %}
-<div class="notice"><span><b>{{ stats.unset }}</b> prices are not set yet.</span><a href="{{ url_for('prices') }}">Set prices &rarr;</a></div>
+{% if stats %}
+  {% if stats.unset %}
+  <div class="notice">
+    <span><b>{{ stats.unset }}</b> supplier prices have not been set yet. Invoices cannot be price-checked until they are.</span>
+    <a href="{{ url_for('prices') }}">Set prices &rarr;</a>
+  </div>
+  {% endif %}
+  <div class="stats">
+    <div class="stat"><div class="n">{{ stats.suppliers }}</div><div class="l">Active suppliers</div></div>
+    <div class="stat"><div class="n">{{ stats.materials }}</div><div class="l">Materials tracked</div></div>
+    <div class="stat {{ 'alert' if stats.unset }}"><div class="n">{{ stats.unset }}</div><div class="l">Prices not set</div></div>
+    <div class="stat"><div class="n">{{ stats.users }}</div><div class="l">Active users</div></div>
+  </div>
+
+  <h2 class="section">Manage</h2>
+  <div class="tiles">
+    <a class="tile" href="{{ url_for('prices') }}">
+      <span class="ic"><svg viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg></span>
+      <div><b>Material prices</b><span>Update prices and view the full history of changes.</span></div>
+    </a>
+    <a class="tile" href="{{ url_for('suppliers') }}">
+      <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 21V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v16M14 9h5a1 1 0 0 1 1 1v11M2 21h20M8 8h2M8 12h2M8 16h2"/></svg></span>
+      <div><b>Suppliers</b><span>Add a new supplier and the materials they provide.</span></div>
+    </a>
+    <a class="tile" href="{{ url_for('users') }}">
+      <span class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14.3c2.2.7 3.5 2.7 3.5 5.7"/></svg></span>
+      <div><b>Users</b><span>Approve sign-ups, create logins and control who can do what.</span></div>
+    </a>
+  </div>
 {% endif %}
 
-<div class="sec-head" style="margin-top:0"><h2>Needs your attention</h2></div>
-<div class="card flush">
-  {% if t['items'] %}
-  <ul class="todo">
-    {% for i in t['items'] %}
-    <li><span class="dot {{ i.tone }}"></span><span class="txt">{{ i.text }}</span>
-        <a class="btn secondary small" href="{{ i.url }}">{{ i.label }}</a></li>
-    {% endfor %}
-  </ul>
-  {% if t['more'] %}<div class="allclear">and {{ t['more'] }} more.</div>{% endif %}
-  {% else %}
-  <div class="allclear">Nothing is waiting for you. {% if role == 'storekeeper' %}When goods arrive, press <b>Record delivery</b>.{% endif %}</div>
+<h2 class="section">Records</h2>
+<div class="tiles">
+  <a class="tile" href="{{ url_for('delivery_list') }}">
+    <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a1.5 1.5 0 1 0 0-.01M17 19a1.5 1.5 0 1 0 0-.01"/></svg></span>
+    <div><b>Deliveries</b><span>Record delivery notes and anything returned.</span></div>
+  </a>
+  {% if user.role in ['admin', 'finance', 'procurement'] %}
+  <a class="tile" href="{{ url_for('invoice_list') }}">
+    <span class="ic"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7"/></svg></span>
+    <div><b>Invoices</b><span>Enter supplier invoices and see if they match deliveries.</span></div>
+  </a>
   {% endif %}
 </div>
-
-<div class="sec-head">
-  <h2>Recent</h2>
-  <form class="find" method="get" action="{{ url_for('home') }}">
-    {% if show %}<input type="hidden" name="show" value="{{ show }}">{% endif %}
-    <input name="q" type="search" value="{{ q }}" placeholder="Search supplier or number" maxlength="60" aria-label="Search">
-    <button type="submit" class="secondary">Search</button>
-    {% if q or show %}<a class="btn secondary" href="{{ url_for('home') }}">Clear</a>{% endif %}
-  </form>
-</div>
-
-{% if has_money and role != 'procurement' %}
-<div class="chips">
-  <a class="{{ 'on' if not show }}" href="{{ url_for('home', q=q or None) }}">All invoices</a>
-  <a class="{{ 'on' if show == 'hold' }}" href="{{ url_for('home', show='hold', q=q or None) }}">On hold</a>
-  <a class="{{ 'on' if show == 'clear' }}" href="{{ url_for('home', show='clear', q=q or None) }}">Ready to pay</a>
-  <a class="{{ 'on' if show == 'done' }}" href="{{ url_for('home', show='done', q=q or None) }}">Paid</a>
-</div>
-{% endif %}
-
-{% if has_money %}
-<div class="card flush scroll">
-  <table>
-    <thead><tr><th>Invoice</th><th class="num">Amount (KES)</th><th>Status</th><th></th></tr></thead>
-    <tbody>
-    {% for r in d.invoices %}
-      <tr>
-        <td class="two">{{ r.supplier }}<small>No. {{ r.inv.invoice_number }} &middot; {{ r.inv.invoice_date }}</small></td>
-        <td class="num">{{ r.summary.total|money }}
-          {% if r.summary.blocked > 0 %}<small style="display:block;color:var(--err)">{{ r.summary.blocked|money }} held back</small>{% endif %}</td>
-        <td><span class="badge {{ r.cls }}">{{ r.state }}</span></td>
-        <td class="num"><a href="{{ url_for('invoice_detail', invoice_id=r.inv.id) }}">Open &rarr;</a></td>
-      </tr>
-    {% else %}
-      <tr><td colspan="4" class="empty">No invoices to show.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-<p style="margin:8px 2px 0"><a href="{{ url_for('invoices', show=show or None) }}">All invoices &rarr;</a>
-  {% if role in ['finance','admin','procurement'] %} &nbsp;&middot;&nbsp; <a href="{{ url_for('labour') }}">Labour invoices &rarr;</a>{% endif %}</p>
-{% endif %}
-
-{% if has_money %}<div class="sec-head"><h2>Deliveries</h2></div>{% endif %}
-<div class="card flush scroll">
-  <table>
-    <thead><tr><th>Delivery</th><th class="num">Items</th><th></th><th></th></tr></thead>
-    <tbody>
-    {% for r in d.notes %}
-      <tr>
-        <td class="two">{{ r.supplier }}<small>{% if r.number %}No. {{ r.number }} &middot; {% endif %}{{ r.date }}</small></td>
-        <td class="num">{{ r.lines }}</td>
-        <td>{% if r.returned %}<span class="badge warn">Goods returned</span>{% endif %}</td>
-        <td class="num"><a href="{{ url_for('delivery_detail', note_id=r.id) }}">Open &rarr;</a></td>
-      </tr>
-    {% else %}
-      <tr><td colspan="4" class="empty">No deliveries to show.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-<p style="margin:8px 2px 0"><a href="{{ url_for('deliveries') }}">All deliveries &rarr;</a>
-  {% if role == 'storekeeper' %} &nbsp;&middot;&nbsp; <a href="{{ url_for('labour') }}">Labour work to certify &rarr;</a>{% endif %}</p>
 {% endblock %}
